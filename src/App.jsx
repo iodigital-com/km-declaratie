@@ -58,22 +58,43 @@ async function fetchRouteMapImage(vanPostcode, naarPostcode) {
   };
   const [van, naar] = await Promise.all([geocode(vanPostcode), geocode(naarPostcode)]);
 
+  // Werkelijke rijafstand + routelijn via OSRM (gratis, geen API key)
+  const osrmRes = await fetch(
+    `https://router.project-osrm.org/route/v1/driving/${van.lon},${van.lat};${naar.lon},${naar.lat}?overview=full&geometries=geojson`
+  );
+  const osrmData = await osrmRes.json();
+  const route = osrmData.routes?.[0];
+  const distKm = route ? parseFloat((route.distance / 1000).toFixed(1)) : null;
+  const routeCoords = route?.geometry?.coordinates ?? [];
+
   const W = 600, H = 380, PAD = 60;
-  const minLat = Math.min(van.lat, naar.lat) - 0.04;
-  const maxLat = Math.max(van.lat, naar.lat) + 0.04;
-  const minLon = Math.min(van.lon, naar.lon) - 0.06;
-  const maxLon = Math.max(van.lon, naar.lon) + 0.06;
+  const allLons = [van.lon, naar.lon, ...routeCoords.map(c => c[0])];
+  const allLats = [van.lat, naar.lat, ...routeCoords.map(c => c[1])];
+  const minLon = Math.min(...allLons) - 0.02;
+  const maxLon = Math.max(...allLons) + 0.02;
+  const minLat = Math.min(...allLats) - 0.02;
+  const maxLat = Math.max(...allLats) + 0.02;
   const toX = (lon) => PAD + ((lon - minLon) / (maxLon - minLon)) * (W - PAD * 2);
   const toY = (lat) => H - PAD - ((lat - minLat) / (maxLat - minLat)) * (H - PAD * 2);
 
   const vX = toX(van.lon), vY = toY(van.lat);
   const nX = toX(naar.lon), nY = toY(naar.lat);
-  const dist = Math.sqrt(Math.pow(van.lat - naar.lat, 2) + Math.pow(van.lon - naar.lon, 2)) * 111;
+
+  const routePath = routeCoords.length > 1
+    ? `<polyline points="${routeCoords.map(c => `${toX(c[0])},${toY(c[1])}`).join(" ")}" fill="none" stroke="#0000D2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`
+    : `<line x1="${vX}" y1="${vY}" x2="${nX}" y2="${nY}" stroke="#0000D2" stroke-width="3" stroke-dasharray="10,5" opacity="0.7"/>`;
+
+  const midIdx = Math.floor(routeCoords.length / 2);
+  const midX = routeCoords.length > 1 ? toX(routeCoords[midIdx][0]) : (vX + nX) / 2;
+  const midY = routeCoords.length > 1 ? toY(routeCoords[midIdx][1]) : (vY + nY) / 2;
+  const distLabel = distKm ? `${distKm} km` : "? km";
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
     <rect width="${W}" height="${H}" fill="#f0ebe3" rx="8"/>
     <rect x="1" y="1" width="${W-2}" height="${H-2}" fill="none" stroke="#ccc" stroke-width="1" rx="8"/>
-    <line x1="${vX}" y1="${vY}" x2="${nX}" y2="${nY}" stroke="#0000D2" stroke-width="3" stroke-dasharray="10,5" opacity="0.7"/>
+    ${routePath}
+    <rect x="${midX - 30}" y="${midY - 15}" width="60" height="20" fill="white" rx="10" opacity="0.93"/>
+    <text x="${midX}" y="${midY - 1}" font-family="Arial" font-size="12" font-weight="bold" fill="#0000D2" text-anchor="middle">${distLabel}</text>
     <circle cx="${vX}" cy="${vY}" r="12" fill="#C3594B" stroke="white" stroke-width="2"/>
     <text x="${vX}" y="${vY + 5}" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">A</text>
     <rect x="${vX + 16}" y="${vY - 14}" width="${vanPostcode.length * 7 + 8}" height="18" fill="white" rx="3" opacity="0.9"/>
@@ -82,11 +103,13 @@ async function fetchRouteMapImage(vanPostcode, naarPostcode) {
     <text x="${nX}" y="${nY + 5}" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">B</text>
     <rect x="${nX + 16}" y="${nY - 14}" width="${naarPostcode.length * 7 + 8}" height="18" fill="white" rx="3" opacity="0.9"/>
     <text x="${nX + 20}" y="${nY - 2}" font-family="Arial" font-size="11" fill="#333">${naarPostcode}</text>
-    <text x="${(vX+nX)/2 + 8}" y="${(vY+nY)/2 - 6}" font-family="Arial" font-size="11" fill="#0000D2" font-weight="bold">≈ ${dist.toFixed(1)} km</text>
-    <text x="10" y="${H - 8}" font-family="Arial" font-size="9" fill="#aaa">Gegenereerd o.b.v. OpenStreetMap / Nominatim</text>
+    <text x="10" y="${H - 8}" font-family="Arial" font-size="9" fill="#aaa">© OpenStreetMap bijdragers | Routeberekening via OSRM</text>
   </svg>`;
 
-  return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+  return {
+    image: "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg))),
+    distKm,
+  };
 }
 
 export default function KmDeclaratie() {
@@ -216,8 +239,9 @@ export default function KmDeclaratie() {
     setMapLoading(prev => ({ ...prev, [route.id]: true }));
     setMapErrors(prev => ({ ...prev, [route.id]: null }));
     try {
-      const imageData = await fetchRouteMapImage(route.vanPostcode, route.naarPostcode);
-      updateDraftRoute(route.id, "mapImage", imageData);
+      const result = await fetchRouteMapImage(route.vanPostcode, route.naarPostcode);
+      updateDraftRoute(route.id, "mapImage", result.image);
+      if (result.distKm !== null) updateDraftRoute(route.id, "kmEnkel", result.distKm);
     } catch (e) {
       setMapErrors(prev => ({ ...prev, [route.id]: e.message }));
     } finally {
