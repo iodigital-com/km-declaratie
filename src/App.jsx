@@ -53,25 +53,13 @@ async function fetchRouteMapImage(vanPostcode, naarPostcode) {
       { headers: { "Accept-Language": "nl" } }
     );
     const data = await r.json();
-    if (!data[0]) throw new Error(`Postcode ${postcode} niet gevonden`);
+    if (!data[0]) throw new Error(`Postcode "${postcode}" niet gevonden`);
     return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
   };
   const [van, naar] = await Promise.all([geocode(vanPostcode), geocode(naarPostcode)]);
   const centerLat = (van.lat + naar.lat) / 2;
   const centerLon = (van.lon + naar.lon) / 2;
-  const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat},${centerLon}&zoom=9&size=600x400&markers=${van.lat},${van.lon},red-pushpin|${naar.lat},${naar.lon},blue-pushpin`;
-  try {
-    const response = await fetch(mapUrl, { mode: "cors" });
-    const blob = await response.blob();
-    return await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return mapUrl;
-  }
+  return `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat},${centerLon}&zoom=9&size=600x400&markers=${van.lat},${van.lon},red-pushpin|${naar.lat},${naar.lon},blue-pushpin`;
 }
 
 export default function KmDeclaratie() {
@@ -86,6 +74,7 @@ export default function KmDeclaratie() {
   const [activeTool, setActiveTool] = useState(DEFAULT_CONFIG.routes[0]?.id ?? null);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [mapLoading, setMapLoading] = useState({});
+  const [mapErrors, setMapErrors] = useState({});
   const [settingsError, setSettingsError] = useState("");
   const printRef = useRef();
 
@@ -198,12 +187,12 @@ export default function KmDeclaratie() {
   const handleAutoMap = async (route) => {
     if (!route.vanPostcode || !route.naarPostcode) return;
     setMapLoading(prev => ({ ...prev, [route.id]: true }));
-    setSettingsError("");
+    setMapErrors(prev => ({ ...prev, [route.id]: null }));
     try {
       const imageData = await fetchRouteMapImage(route.vanPostcode, route.naarPostcode);
       updateDraftRoute(route.id, "mapImage", imageData);
     } catch (e) {
-      setSettingsError(`Kaart ophalen mislukt voor "${route.label}": ${e.message}`);
+      setMapErrors(prev => ({ ...prev, [route.id]: e.message }));
     } finally {
       setMapLoading(prev => ({ ...prev, [route.id]: false }));
     }
@@ -327,16 +316,23 @@ export default function KmDeclaratie() {
 
                   {/* Auto-ophalen */}
                   {route.vanPostcode && route.naarPostcode && (
-                    <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"8px", flexWrap:"wrap" }}>
-                      <button onClick={() => handleAutoMap(route)} disabled={mapLoading[route.id]}
-                        style={{ padding:"6px 12px", borderRadius:"6px", border:"1px solid #0000D2", background:"white", color:"#0000D2", cursor:"pointer", fontSize:"12px", fontWeight:"600", opacity: mapLoading[route.id] ? 0.6 : 1 }}>
-                        {mapLoading[route.id] ? "⏳ Ophalen…" : "🗺️ Kaart automatisch ophalen"}
-                      </button>
-                      <a href={`https://www.google.nl/maps/dir/${encodeURIComponent(route.vanPostcode + ",+NL")}/${encodeURIComponent(route.naarPostcode + ",+NL")}`}
-                        target="_blank" rel="noreferrer"
-                        style={{ fontSize:"12px", color:"#0000D2", textDecoration:"none" }}>
-                        Open in Google Maps →
-                      </a>
+                    <div style={{ marginBottom:"8px" }}>
+                      <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
+                        <button onClick={() => handleAutoMap(route)} disabled={mapLoading[route.id]}
+                          style={{ padding:"6px 12px", borderRadius:"6px", border:"1px solid #0000D2", background:"white", color:"#0000D2", cursor:"pointer", fontSize:"12px", fontWeight:"600", opacity: mapLoading[route.id] ? 0.6 : 1 }}>
+                          {mapLoading[route.id] ? "⏳ Ophalen…" : "🗺️ Kaart automatisch ophalen"}
+                        </button>
+                        <a href={`https://www.google.nl/maps/dir/${encodeURIComponent(route.vanPostcode + ",+NL")}/${encodeURIComponent(route.naarPostcode + ",+NL")}`}
+                          target="_blank" rel="noreferrer"
+                          style={{ fontSize:"12px", color:"#0000D2", textDecoration:"none" }}>
+                          Open in Google Maps →
+                        </a>
+                      </div>
+                      {mapErrors[route.id] && (
+                        <div style={{ marginTop:"5px", fontSize:"11px", color:"#C3594B" }}>
+                          ⚠️ {mapErrors[route.id]} — gebruik handmatig uploaden of "Open in Google Maps".
+                        </div>
+                      )}
                     </div>
                   )}
 
