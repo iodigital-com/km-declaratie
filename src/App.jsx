@@ -303,7 +303,7 @@ export default function KmDeclaratie() {
                   )}
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
-                  {[["Label","label","text"],["Van postcode","vanPostcode","text"],["Naar postcode","naarPostcode","text"],["Doel reis","doel","text"],["KM enkel","kmEnkel","number"]].map(([lbl, field, type]) => (
+                  {[["Label","label","text"],["Doel reis","doel","text"],["Van postcode","vanPostcode","text"],["Naar postcode","naarPostcode","text"],["KM enkel","kmEnkel","number"]].map(([lbl, field, type]) => (
                     <div key={field}>
                       <label style={labelStyle}>{lbl}</label>
                       <input type={type} step={field==="kmEnkel"?"0.1":undefined} value={route[field]}
