@@ -44,6 +44,35 @@ const labelStyle = { fontSize:"11px", color:"#747474", display:"block", marginBo
 const inputStyle = { padding:"7px 10px", borderRadius:"6px", border:"1px solid #ddd", fontSize:"13px", width:"100%", fontFamily:"Arial" };
 const tdStyle = { padding:"4px 7px", borderBottom:"1px solid #e8e8e8", fontFamily:"Arial" };
 const routeColor = ["#0000D2","#C3594B","#2D8A4E","#8B5CF6","#D97706"];
+const SOORT_DAG_OPTIES = ["Kantoordag", "Klantdag", "Thuiswerkdag", "Feestdag", "Vrij"];
+
+async function fetchRouteMapImage(vanPostcode, naarPostcode) {
+  const geocode = async (postcode) => {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(postcode + ", Nederland")}&format=json&limit=1`,
+      { headers: { "Accept-Language": "nl" } }
+    );
+    const data = await r.json();
+    if (!data[0]) throw new Error(`Postcode ${postcode} niet gevonden`);
+    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+  };
+  const [van, naar] = await Promise.all([geocode(vanPostcode), geocode(naarPostcode)]);
+  const centerLat = (van.lat + naar.lat) / 2;
+  const centerLon = (van.lon + naar.lon) / 2;
+  const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat},${centerLon}&zoom=9&size=600x400&markers=${van.lat},${van.lon},red-pushpin|${naar.lat},${naar.lon},blue-pushpin`;
+  try {
+    const response = await fetch(mapUrl, { mode: "cors" });
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return mapUrl;
+  }
+}
 
 export default function KmDeclaratie() {
   const now = new Date();
@@ -56,6 +85,8 @@ export default function KmDeclaratie() {
   const [selectedDays, setSelectedDays] = useState({});
   const [activeTool, setActiveTool] = useState(DEFAULT_CONFIG.routes[0]?.id ?? null);
   const [updateInfo, setUpdateInfo] = useState(null);
+  const [mapLoading, setMapLoading] = useState({});
+  const [settingsError, setSettingsError] = useState("");
   const printRef = useRef();
 
   // Laad opgeslagen instellingen uit localStorage bij opstarten
@@ -164,7 +195,26 @@ export default function KmDeclaratie() {
   const removeDraftRoute = (id) => {
     setDraftConfig(prev => ({ ...prev, routes: prev.routes.filter(r => r.id !== id) }));
   };
+  const handleAutoMap = async (route) => {
+    if (!route.vanPostcode || !route.naarPostcode) return;
+    setMapLoading(prev => ({ ...prev, [route.id]: true }));
+    setSettingsError("");
+    try {
+      const imageData = await fetchRouteMapImage(route.vanPostcode, route.naarPostcode);
+      updateDraftRoute(route.id, "mapImage", imageData);
+    } catch (e) {
+      setSettingsError(`Kaart ophalen mislukt voor "${route.label}": ${e.message}`);
+    } finally {
+      setMapLoading(prev => ({ ...prev, [route.id]: false }));
+    }
+  };
   const saveSettings = () => {
+    const missing = draftConfig.routes.filter(r => !r.mapImage);
+    if (missing.length > 0) {
+      setSettingsError(`Routekaart ontbreekt voor: ${missing.map(r => r.label).join(", ")}`);
+      return;
+    }
+    setSettingsError("");
     setConfig(draftConfig);
     if (!draftConfig.routes.find(r => r.id === activeTool)) setActiveTool(draftConfig.routes[0]?.id ?? null);
     setSelectedDays({});
@@ -237,7 +287,7 @@ export default function KmDeclaratie() {
                   )}
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
-                  {[["Label","label","text"],["Soort dag","soortDag","text"],["Van postcode","vanPostcode","text"],["Naar postcode","naarPostcode","text"],["Doel reis","doel","text"],["KM enkel","kmEnkel","number"]].map(([lbl, field, type]) => (
+                  {[["Label","label","text"],["Van postcode","vanPostcode","text"],["Naar postcode","naarPostcode","text"],["Doel reis","doel","text"],["KM enkel","kmEnkel","number"]].map(([lbl, field, type]) => (
                     <div key={field}>
                       <label style={labelStyle}>{lbl}</label>
                       <input type={type} step={field==="kmEnkel"?"0.1":undefined} value={route[field]}
@@ -245,6 +295,21 @@ export default function KmDeclaratie() {
                         style={inputStyle} />
                     </div>
                   ))}
+                  <div>
+                    <label style={labelStyle}>Soort dag</label>
+                    <select
+                      value={SOORT_DAG_OPTIES.includes(route.soortDag) ? route.soortDag : "Overig"}
+                      onChange={e => updateDraftRoute(route.id, "soortDag", e.target.value === "Overig" ? "" : e.target.value)}
+                      style={inputStyle}>
+                      {SOORT_DAG_OPTIES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      <option value="Overig">Overig…</option>
+                    </select>
+                    {!SOORT_DAG_OPTIES.includes(route.soortDag) && (
+                      <input type="text" placeholder="Vul soort dag in" value={route.soortDag}
+                        onChange={e => updateDraftRoute(route.id, "soortDag", e.target.value)}
+                        style={{ ...inputStyle, marginTop:"6px" }} />
+                    )}
+                  </div>
                   <div>
                     <label style={labelStyle}>Enkel (1) of Retour (2)</label>
                     <select value={route.retour} onChange={e => updateDraftRoute(route.id, "retour", +e.target.value)} style={inputStyle}>
@@ -254,15 +319,35 @@ export default function KmDeclaratie() {
                   </div>
                 </div>
 
-                {/* Google Maps image upload */}
+                {/* Google Maps kaart — verplicht */}
                 <div style={{ marginTop:"12px", borderTop:"1px dashed #ddd", paddingTop:"12px" }}>
-                  <label style={labelStyle}>📍 Google Maps screenshot (verschijnt onderaan PDF)</label>
+                  <label style={{ ...labelStyle, color: route.mapImage ? "#747474" : "#C3594B" }}>
+                    📍 Routekaart * verplicht — verschijnt onderaan PDF
+                  </label>
+
+                  {/* Auto-ophalen */}
+                  {route.vanPostcode && route.naarPostcode && (
+                    <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"8px", flexWrap:"wrap" }}>
+                      <button onClick={() => handleAutoMap(route)} disabled={mapLoading[route.id]}
+                        style={{ padding:"6px 12px", borderRadius:"6px", border:"1px solid #0000D2", background:"white", color:"#0000D2", cursor:"pointer", fontSize:"12px", fontWeight:"600", opacity: mapLoading[route.id] ? 0.6 : 1 }}>
+                        {mapLoading[route.id] ? "⏳ Ophalen…" : "🗺️ Kaart automatisch ophalen"}
+                      </button>
+                      <a href={`https://www.google.nl/maps/dir/${encodeURIComponent(route.vanPostcode + ",+NL")}/${encodeURIComponent(route.naarPostcode + ",+NL")}`}
+                        target="_blank" rel="noreferrer"
+                        style={{ fontSize:"12px", color:"#0000D2", textDecoration:"none" }}>
+                        Open in Google Maps →
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Handmatig uploaden */}
                   <input type="file" accept="image/*"
                     onChange={e => handleImageUpload(route.id, e.target.files[0])}
                     style={{ fontSize:"12px", cursor:"pointer" }} />
+
                   {route.mapImage && (
                     <div style={{ marginTop:"10px", position:"relative", display:"inline-block" }}>
-                      <img src={route.mapImage} alt="Google Maps" style={{ maxWidth:"100%", maxHeight:"140px", borderRadius:"6px", border:"1px solid #ddd", display:"block" }} />
+                      <img src={route.mapImage} alt="Routekaart" style={{ maxWidth:"100%", maxHeight:"140px", borderRadius:"6px", border:"1px solid #ddd", display:"block" }} />
                       <button onClick={() => updateDraftRoute(route.id, "mapImage", null)}
                         style={{ position:"absolute", top:"4px", right:"4px", background:"rgba(0,0,0,0.6)", color:"white", border:"none", borderRadius:"4px", padding:"2px 7px", cursor:"pointer", fontSize:"11px" }}>
                         ✕
@@ -270,8 +355,8 @@ export default function KmDeclaratie() {
                     </div>
                   )}
                   {!route.mapImage && (
-                    <div style={{ marginTop:"6px", fontSize:"11px", color:"#999", fontStyle:"italic" }}>
-                      Nog geen afbeelding geüpload. Maak een screenshot van Google Maps en upload die hier.
+                    <div style={{ marginTop:"6px", fontSize:"11px", color:"#C3594B" }}>
+                      ⚠️ Nog geen kaart — gebruik "Kaart automatisch ophalen" of upload een screenshot.
                     </div>
                   )}
                 </div>
@@ -283,7 +368,10 @@ export default function KmDeclaratie() {
               + Route toevoegen
             </button>
 
-            <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", borderTop:"1px solid #eee", paddingTop:"14px" }}>
+            <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", borderTop:"1px solid #eee", paddingTop:"14px", flexWrap:"wrap", alignItems:"center" }}>
+              {settingsError && (
+                <div style={{ flex:"1 1 100%", fontSize:"12px", color:"#C3594B", fontWeight:"600" }}>⚠️ {settingsError}</div>
+              )}
               <button onClick={() => setShowSettings(false)}
                 style={{ padding:"8px 18px", borderRadius:"6px", border:"1px solid #ddd", background:"white", cursor:"pointer", fontSize:"13px" }}>Annuleer</button>
               <button onClick={saveSettings}
