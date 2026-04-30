@@ -40,10 +40,16 @@ function getFirstDayOfMonth(year, month) { return new Date(year, month, 1).getDa
 function formatDate(day, month, year) { return `${day} ${MAANDEN[month]} ${year}`; }
 function uid() { return Math.floor(Math.random() * 1e9); }
 
-const labelStyle = { fontSize:"11px", color:"#747474", display:"block", marginBottom:"4px", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.4px" };
-const inputStyle = { padding:"7px 10px", borderRadius:"6px", border:"1px solid #ddd", fontSize:"13px", width:"100%", fontFamily:"Arial" };
-const tdStyle = { padding:"4px 7px", borderBottom:"1px solid #e8e8e8", fontFamily:"Arial" };
-const routeColor = ["#0000D2","#C3594B","#2D8A4E","#8B5CF6","#D97706"];
+const FONT = "'Manrope', 'Inter', system-ui, sans-serif";
+const C = {
+  blue: "#0000D2", blueDark: "#0000A8", blueLight: "#e8eaff",
+  black: "#1a1a1a", gray: "#6b6b6b", grayLight: "#e2e2e2",
+  bg: "#f5f4f1", white: "#ffffff", red: "#C3594B", green: "#2D8A4E",
+};
+const labelStyle = { fontSize:"11px", color:C.gray, display:"block", marginBottom:"5px", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.6px", fontFamily:FONT };
+const inputStyle = { padding:"10px 14px", borderRadius:"8px", border:`1.5px solid ${C.grayLight}`, fontSize:"14px", width:"100%", fontFamily:FONT, color:C.black, background:C.white, outline:"none", transition:"border-color 0.15s" };
+const tdStyle = { padding:"6px 10px", borderBottom:`1px solid ${C.grayLight}`, fontFamily:FONT, fontSize:"13px" };
+const routeColor = [C.blue, C.red, C.green, "#8B5CF6", "#D97706"];
 const SOORT_DAG_OPTIES = ["Kantoordag", "Klantdag", "Thuiswerkdag", "Feestdag", "Vrij"];
 
 async function fetchRouteMapImage(vanPostcode, naarPostcode) {
@@ -113,6 +119,13 @@ async function fetchRouteMapImage(vanPostcode, naarPostcode) {
 }
 
 export default function KmDeclaratie() {
+  // Inject global styles once
+  if (typeof document !== "undefined" && !document.getElementById("km-global-style")) {
+    const s = document.createElement("style");
+    s.id = "km-global-style";
+    s.textContent = `*{box-sizing:border-box;margin:0;padding:0}body{background:#f5f4f1}input,select,textarea{font-family:'Manrope','Inter',system-ui,sans-serif}input:focus,select:focus{outline:none;border-color:#0000D2!important}`;
+    document.head.appendChild(s);
+  }
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -262,46 +275,55 @@ export default function KmDeclaratie() {
   };
 
   return (
-    <div style={{ fontFamily:"Arial, sans-serif", minHeight:"100vh", background:"#EBE8E3", padding:"20px" }}>
+    <div style={{ fontFamily:FONT, minHeight:"100vh", background:C.bg, color:C.black }}>
 
       {/* Update-banner */}
       {updateInfo && (
-        <div style={{ background:"#FFF3CD", border:"1px solid #FFCA28", borderRadius:"8px", padding:"10px 16px", marginBottom:"14px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", flexWrap:"wrap" }}>
-          <div style={{ fontSize:"13px", color:"#7A5800" }}>
-            <strong>⬆️ Nieuwe versie beschikbaar ({updateInfo.version})</strong>
-            {updateInfo.changelog && <span style={{ marginLeft:"8px", opacity:0.8 }}>— {updateInfo.changelog}</span>}
+        <div style={{ background:"#FFF8E1", borderBottom:`2px solid #F9A825`, padding:"10px 32px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
+          <div style={{ fontSize:"13px", color:"#7A5800", fontWeight:"600" }}>
+            ⬆ Nieuwe versie beschikbaar ({updateInfo.version})
+            {updateInfo.changelog && <span style={{ fontWeight:"400", marginLeft:"8px", opacity:0.8 }}>— {updateInfo.changelog}</span>}
           </div>
-          <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+          <div style={{ display:"flex", gap:"10px", alignItems:"center" }}>
             <a href={updateInfo.downloadUrl} target="_blank" rel="noreferrer"
-              style={{ padding:"5px 14px", borderRadius:"5px", background:"#0000D2", color:"white", textDecoration:"none", fontSize:"12px", fontWeight:"600" }}>
-              Download nieuwste versie
+              style={{ padding:"6px 18px", borderRadius:"24px", background:C.blue, color:C.white, textDecoration:"none", fontSize:"13px", fontWeight:"700", display:"flex", alignItems:"center", gap:"6px" }}>
+              Download →
             </a>
-            <button onClick={() => setUpdateInfo(null)}
-              style={{ background:"none", border:"none", cursor:"pointer", fontSize:"16px", color:"#7A5800", lineHeight:1 }}>✕</button>
+            <button onClick={() => setUpdateInfo(null)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:"18px", color:"#7A5800", lineHeight:1, padding:"0 4px" }}>✕</button>
           </div>
         </div>
       )}
 
       {/* Header */}
-      <div style={{ background:"#0000D2", color:"white", borderRadius:"10px", padding:"16px 22px", marginBottom:"16px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"10px" }}>
-        <div>
-          <div style={{ fontSize:"11px", opacity:0.7, textTransform:"uppercase", letterSpacing:"1px" }}>iO — Kilometerdeclaratie</div>
-          <div style={{ fontSize:"20px", fontWeight:"bold", marginTop:"2px" }}>{config.naam}</div>
-          <div style={{ fontSize:"11px", opacity:0.75, marginTop:"3px" }}>€{config.kmVergoeding}/km &nbsp;|&nbsp; {config.routes.length} route{config.routes.length !== 1 ? "s" : ""} geconfigureerd &nbsp;|&nbsp; v{VERSION}</div>
+      <header style={{ background:C.white, borderBottom:`1px solid ${C.grayLight}`, padding:"0 32px" }}>
+        <div style={{ maxWidth:"1100px", margin:"0 auto", display:"flex", justifyContent:"space-between", alignItems:"center", height:"64px", gap:"16px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"20px" }}>
+            <div style={{ fontWeight:"800", fontSize:"22px", letterSpacing:"-0.5px", color:C.black }}>
+              <span style={{ color:C.blue }}>i</span>O
+            </div>
+            <div style={{ width:"1px", height:"24px", background:C.grayLight }} />
+            <div>
+              <div style={{ fontSize:"13px", color:C.gray, fontWeight:"500", letterSpacing:"0.2px" }}>Kilometerdeclaratie</div>
+              {config.naam && <div style={{ fontSize:"16px", fontWeight:"700", color:C.black, lineHeight:1.2 }}>{config.naam}</div>}
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+            <span style={{ fontSize:"12px", color:C.gray }}>€{config.kmVergoeding}/km · {config.routes.length} route{config.routes.length !== 1 ? "s" : ""} · v{VERSION}</span>
+            <button onClick={() => { setDraftConfig(JSON.parse(JSON.stringify(config))); setShowSettings(true); }}
+              style={{ padding:"8px 20px", borderRadius:"24px", border:`1.5px solid ${C.blue}`, background:"transparent", color:C.blue, cursor:"pointer", fontWeight:"700", fontSize:"13px", fontFamily:FONT, display:"flex", alignItems:"center", gap:"6px", transition:"all 0.15s" }}>
+              Instellingen →
+            </button>
+          </div>
         </div>
-        <button onClick={() => { setDraftConfig(JSON.parse(JSON.stringify(config))); setShowSettings(true); }}
-          style={{ padding:"8px 16px", borderRadius:"7px", border:"2px solid rgba(255,255,255,0.4)", background:"transparent", color:"white", cursor:"pointer", fontWeight:"600", fontSize:"12px" }}>
-          ⚙️ Instellingen
-        </button>
-      </div>
+      </header>
 
       {/* Settings Modal */}
       {showSettings && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-          <div style={{ background:"white", borderRadius:"12px", padding:"24px", width:"100%", maxWidth:"620px", maxHeight:"88vh", overflowY:"auto", boxShadow:"0 8px 32px rgba(0,0,0,0.2)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
-              <div style={{ fontWeight:"700", fontSize:"16px" }}>⚙️ Instellingen</div>
-              <button onClick={() => setShowSettings(false)} style={{ background:"none", border:"none", fontSize:"20px", cursor:"pointer", color:"#747474" }}>✕</button>
+        <div style={{ position:"fixed", inset:0, background:"rgba(26,26,26,0.5)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
+          <div style={{ background:C.white, borderRadius:"16px", padding:"32px", width:"100%", maxWidth:"640px", maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", fontFamily:FONT }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"24px" }}>
+              <div style={{ fontWeight:"800", fontSize:"20px", color:C.black }}>Instellingen</div>
+              <button onClick={() => setShowSettings(false)} style={{ background:"none", border:"none", fontSize:"22px", cursor:"pointer", color:C.gray, lineHeight:1, padding:"4px" }}>✕</button>
             </div>
 
             <div style={{ marginBottom:"14px" }}>
@@ -315,15 +337,15 @@ export default function KmDeclaratie() {
                 style={{ ...inputStyle, width:"140px" }} />
             </div>
 
-            <div style={{ fontWeight:"700", fontSize:"13px", marginBottom:"10px", borderTop:"1px solid #eee", paddingTop:"14px" }}>Routes</div>
+            <div style={{ fontWeight:"700", fontSize:"14px", marginBottom:"12px", borderTop:`1px solid ${C.grayLight}`, paddingTop:"20px", color:C.black }}>Routes</div>
 
             {draftConfig.routes.map((route, ri) => (
-              <div key={route.id} style={{ background:"#f9f9f9", borderRadius:"8px", padding:"14px", marginBottom:"12px", borderLeft:`4px solid ${routeColor[ri % routeColor.length]}` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"10px" }}>
-                  <div style={{ fontWeight:"600", fontSize:"12px", color:routeColor[ri % routeColor.length] }}>Route {ri + 1}</div>
+              <div key={route.id} style={{ background:C.bg, borderRadius:"12px", padding:"18px", marginBottom:"14px", borderLeft:`4px solid ${routeColor[ri % routeColor.length]}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+                  <div style={{ fontWeight:"700", fontSize:"13px", color:routeColor[ri % routeColor.length], textTransform:"uppercase", letterSpacing:"0.5px" }}>Route {ri + 1}</div>
                   {draftConfig.routes.length > 1 && (
                     <button onClick={() => removeDraftRoute(route.id)}
-                      style={{ background:"none", border:"none", color:"#C3594B", cursor:"pointer", fontSize:"12px", fontWeight:"600" }}>✕ Verwijder</button>
+                      style={{ background:"none", border:"none", color:C.red, cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:FONT }}>Verwijder ✕</button>
                   )}
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
@@ -361,27 +383,27 @@ export default function KmDeclaratie() {
 
                 {/* Google Maps kaart — verplicht */}
                 <div style={{ marginTop:"12px", borderTop:"1px dashed #ddd", paddingTop:"12px" }}>
-                  <label style={{ ...labelStyle, color: route.mapImage ? "#747474" : "#C3594B" }}>
-                    📍 Routekaart * verplicht — verschijnt onderaan PDF
+                  <label style={{ ...labelStyle, color: route.mapImage ? C.gray : C.red }}>
+                    Routekaart * verplicht
                   </label>
 
                   {/* Auto-ophalen */}
                   {route.vanPostcode && route.naarPostcode && (
                     <div style={{ marginBottom:"8px" }}>
-                      <div style={{ display:"flex", gap:"8px", alignItems:"center", flexWrap:"wrap" }}>
+                      <div style={{ display:"flex", gap:"10px", alignItems:"center", flexWrap:"wrap" }}>
                         <button onClick={() => handleAutoMap(route)} disabled={mapLoading[route.id]}
-                          style={{ padding:"6px 12px", borderRadius:"6px", border:"1px solid #0000D2", background:"white", color:"#0000D2", cursor:"pointer", fontSize:"12px", fontWeight:"600", opacity: mapLoading[route.id] ? 0.6 : 1 }}>
-                          {mapLoading[route.id] ? "⏳ Ophalen…" : "🗺️ Kaart automatisch ophalen"}
+                          style={{ padding:"8px 16px", borderRadius:"24px", border:`1.5px solid ${C.blue}`, background:"transparent", color:C.blue, cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:FONT, opacity: mapLoading[route.id] ? 0.6 : 1 }}>
+                          {mapLoading[route.id] ? "Ophalen…" : "Kaart automatisch ophalen →"}
                         </button>
                         <a href={`https://www.google.nl/maps/dir/${encodeURIComponent(route.vanPostcode + ",+NL")}/${encodeURIComponent(route.naarPostcode + ",+NL")}`}
                           target="_blank" rel="noreferrer"
-                          style={{ fontSize:"12px", color:"#0000D2", textDecoration:"none" }}>
+                          style={{ fontSize:"13px", color:C.blue, textDecoration:"none", fontWeight:"600" }}>
                           Open in Google Maps →
                         </a>
                       </div>
                       {mapErrors[route.id] && (
-                        <div style={{ marginTop:"5px", fontSize:"11px", color:"#C3594B" }}>
-                          ⚠️ {mapErrors[route.id]} — gebruik handmatig uploaden of "Open in Google Maps".
+                        <div style={{ marginTop:"6px", fontSize:"12px", color:C.red, fontWeight:"600" }}>
+                          ⚠ {mapErrors[route.id]} — gebruik handmatig uploaden of "Open in Google Maps".
                         </div>
                       )}
                     </div>
@@ -394,16 +416,16 @@ export default function KmDeclaratie() {
 
                   {route.mapImage && (
                     <div style={{ marginTop:"10px", position:"relative", display:"inline-block" }}>
-                      <img src={route.mapImage} alt="Routekaart" style={{ maxWidth:"100%", maxHeight:"140px", borderRadius:"6px", border:"1px solid #ddd", display:"block" }} />
+                      <img src={route.mapImage} alt="Routekaart" style={{ maxWidth:"100%", maxHeight:"140px", borderRadius:"10px", border:`1px solid ${C.grayLight}`, display:"block" }} />
                       <button onClick={() => updateDraftRoute(route.id, "mapImage", null)}
-                        style={{ position:"absolute", top:"4px", right:"4px", background:"rgba(0,0,0,0.6)", color:"white", border:"none", borderRadius:"4px", padding:"2px 7px", cursor:"pointer", fontSize:"11px" }}>
+                        style={{ position:"absolute", top:"6px", right:"6px", background:"rgba(26,26,26,0.7)", color:C.white, border:"none", borderRadius:"6px", padding:"3px 8px", cursor:"pointer", fontSize:"12px", fontWeight:"700" }}>
                         ✕
                       </button>
                     </div>
                   )}
                   {!route.mapImage && (
-                    <div style={{ marginTop:"6px", fontSize:"11px", color:"#C3594B" }}>
-                      ⚠️ Nog geen kaart — gebruik "Kaart automatisch ophalen" of upload een screenshot.
+                    <div style={{ marginTop:"8px", fontSize:"12px", color:C.red, fontWeight:"600" }}>
+                      Nog geen kaart — gebruik "Kaart automatisch ophalen" of upload een screenshot.
                     </div>
                   )}
                 </div>
@@ -411,19 +433,19 @@ export default function KmDeclaratie() {
             ))}
 
             <button onClick={addDraftRoute}
-              style={{ padding:"7px 14px", borderRadius:"6px", border:"2px dashed #0000D2", background:"transparent", color:"#0000D2", cursor:"pointer", fontSize:"12px", fontWeight:"600", marginBottom:"18px" }}>
+              style={{ padding:"10px 18px", borderRadius:"24px", border:`2px dashed ${C.blue}`, background:"transparent", color:C.blue, cursor:"pointer", fontSize:"13px", fontWeight:"700", marginBottom:"20px", fontFamily:FONT }}>
               + Route toevoegen
             </button>
 
-            <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", borderTop:"1px solid #eee", paddingTop:"14px", flexWrap:"wrap", alignItems:"center" }}>
+            <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", borderTop:`1px solid ${C.grayLight}`, paddingTop:"20px", flexWrap:"wrap", alignItems:"center" }}>
               {settingsError && (
-                <div style={{ flex:"1 1 100%", fontSize:"12px", color:"#C3594B", fontWeight:"600" }}>⚠️ {settingsError}</div>
+                <div style={{ flex:"1 1 100%", fontSize:"13px", color:C.red, fontWeight:"600" }}>⚠ {settingsError}</div>
               )}
               <button onClick={() => setShowSettings(false)}
-                style={{ padding:"8px 18px", borderRadius:"6px", border:"1px solid #ddd", background:"white", cursor:"pointer", fontSize:"13px" }}>Annuleer</button>
+                style={{ padding:"10px 22px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"600", fontFamily:FONT, color:C.black }}>Annuleer</button>
               <button onClick={saveSettings}
-                style={{ padding:"8px 20px", borderRadius:"6px", border:"none", background:"#0000D2", color:"white", cursor:"pointer", fontSize:"13px", fontWeight:"600" }}>
-                Opslaan
+                style={{ padding:"10px 28px", borderRadius:"24px", border:"none", background:C.blue, color:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:FONT }}>
+                Opslaan →
               </button>
             </div>
           </div>
@@ -431,19 +453,24 @@ export default function KmDeclaratie() {
       )}
 
       {/* Tabs */}
-      <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
-        {[["select","📅 Dagen selecteren"],["preview","📄 Declaratie preview"]].map(([v, label]) => (
-          <button key={v} onClick={() => setView(v)} style={{
-            padding:"8px 18px", borderRadius:"6px", border:"none", cursor:"pointer", fontWeight:"600", fontSize:"13px",
-            background: view===v ? "#0000D2" : "white", color: view===v ? "white" : "#242424",
-            boxShadow:"0 1px 3px rgba(0,0,0,0.1)"
-          }}>{label}</button>
-        ))}
+      <div style={{ maxWidth:"1100px", margin:"0 auto", padding:"24px 32px 0" }}>
+        <div style={{ display:"flex", gap:"0", borderBottom:`2px solid ${C.grayLight}`, marginBottom:"24px" }}>
+          {[["select","Dagen selecteren"],["preview","Declaratie"]].map(([v, label]) => (
+            <button key={v} onClick={() => setView(v)} style={{
+              padding:"12px 24px", border:"none", background:"transparent", cursor:"pointer",
+              fontWeight:"700", fontSize:"14px", fontFamily:FONT,
+              color: view===v ? C.blue : C.gray,
+              borderBottom: view===v ? `3px solid ${C.blue}` : "3px solid transparent",
+              marginBottom:"-2px", transition:"color 0.15s"
+            }}>{label}</button>
+          ))}
+        </div>
       </div>
 
       {view === "select" && (
-        <div style={{ background:"white", borderRadius:"10px", padding:"20px", boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
-          <div style={{ display:"flex", gap:"12px", alignItems:"flex-end", marginBottom:"16px", flexWrap:"wrap" }}>
+        <div style={{ maxWidth:"1100px", margin:"0 auto", padding:"0 32px 32px" }}>
+        <div style={{ background:C.white, borderRadius:"16px", padding:"28px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+          <div style={{ display:"flex", gap:"12px", alignItems:"flex-end", marginBottom:"20px", flexWrap:"wrap" }}>
             <div>
               <label style={labelStyle}>Maand</label>
               <select value={month} onChange={e => { setMonth(+e.target.value); setSelectedDays({}); }} style={{ ...inputStyle, width:"130px" }}>
@@ -457,22 +484,22 @@ export default function KmDeclaratie() {
               </select>
             </div>
             <div style={{ marginLeft:"auto", textAlign:"right" }}>
-              <div style={{ fontSize:"11px", color:"#747474" }}>Totaal geselecteerd</div>
-              <div style={{ fontSize:"22px", fontWeight:"bold", color:"#0000D2", lineHeight:1 }}>{selectedCount} dagen</div>
-              <div style={{ fontSize:"11px", color:"#747474" }}>{totalKm.toFixed(1)} km &nbsp;|&nbsp; €{totalVergoeding.toFixed(2)}</div>
+              <div style={{ fontSize:"11px", color:C.gray, fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.4px", marginBottom:"2px" }}>Geselecteerd</div>
+              <div style={{ fontSize:"28px", fontWeight:"800", color:C.blue, lineHeight:1, fontFamily:FONT }}>{selectedCount}</div>
+              <div style={{ fontSize:"11px", color:C.gray }}>dagen · {totalKm.toFixed(1)} km · €{totalVergoeding.toFixed(2)}</div>
             </div>
           </div>
 
           {config.routes.length > 0 && (
-            <div style={{ marginBottom:"14px" }}>
-              <div style={{ fontSize:"11px", color:"#747474", marginBottom:"6px", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.5px" }}>Actieve route</div>
+            <div style={{ marginBottom:"20px" }}>
+              <div style={labelStyle}>Actieve route</div>
               <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
                 {config.routes.map((r, ri) => (
                   <button key={r.id} onClick={() => setActiveTool(r.id)} style={{
-                    padding:"6px 14px", borderRadius:"20px", border:`2px solid ${routeColor[ri % routeColor.length]}`,
-                    background: activeTool===r.id ? routeColor[ri % routeColor.length] : "white",
-                    color: activeTool===r.id ? "white" : routeColor[ri % routeColor.length],
-                    cursor:"pointer", fontWeight:"600", fontSize:"12px", transition:"all 0.15s"
+                    padding:"8px 18px", borderRadius:"24px", border:`2px solid ${routeColor[ri % routeColor.length]}`,
+                    background: activeTool===r.id ? routeColor[ri % routeColor.length] : "transparent",
+                    color: activeTool===r.id ? C.white : routeColor[ri % routeColor.length],
+                    cursor:"pointer", fontWeight:"700", fontSize:"13px", fontFamily:FONT, transition:"all 0.15s"
                   }}>{r.label}</button>
                 ))}
               </div>
@@ -484,7 +511,7 @@ export default function KmDeclaratie() {
               <thead>
                 <tr>
                   {DAGEN_NL.map(d => (
-                    <th key={d} style={{ padding:"5px", textAlign:"center", fontSize:"11px", color:d==="zo"||d==="za"?"#bbb":"#747474", fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.5px" }}>{d}</th>
+                    <th key={d} style={{ padding:"8px 4px", textAlign:"center", fontSize:"11px", color:d==="zo"||d==="za"?C.grayLight:C.gray, fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.6px", fontFamily:FONT }}>{d}</th>
                   ))}
                 </tr>
               </thead>
@@ -499,21 +526,22 @@ export default function KmDeclaratie() {
                       const ri2 = route ? config.routes.findIndex(r => r.id===routeId) : -1;
                       const color = ri2>=0 ? routeColor[ri2%routeColor.length] : null;
                       return (
-                        <td key={di} style={{ padding:"3px", textAlign:"center", verticalAlign:"top" }}>
+                        <td key={di} style={{ padding:"4px", textAlign:"center", verticalAlign:"top" }}>
                           {day ? (
                             <div onClick={() => toggleDay(day)} style={{
-                              width:"44px", height:"48px", margin:"0 auto", borderRadius:"8px",
+                              width:"46px", height:"52px", margin:"0 auto", borderRadius:"10px",
                               display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
                               cursor: isWeekend?"default":"pointer",
-                              background: color?color:isWeekend?"#F4F4F4":"white",
-                              color: color?"white":isWeekend?"#ccc":"#242424",
-                              border:`2px solid ${color?color:isWeekend?"transparent":"#eee"}`,
-                              fontWeight: color?"700":"400", transition:"all 0.15s",
+                              background: color?color:isWeekend?C.bg:C.white,
+                              color: color?C.white:isWeekend?C.grayLight:C.black,
+                              border:`2px solid ${color?color:isWeekend?"transparent":C.grayLight}`,
+                              fontWeight: color?"700":"500", transition:"all 0.15s",
+                              boxShadow: color?"0 2px 6px rgba(0,0,0,0.12)":"none",
                             }}>
-                              <span style={{ fontSize:"14px" }}>{day}</span>
-                              {route && <span style={{ fontSize:"7px", opacity:0.9, marginTop:"1px", lineHeight:1.2 }}>{route.soortDag}</span>}
+                              <span style={{ fontSize:"15px", fontFamily:FONT }}>{day}</span>
+                              {route && <span style={{ fontSize:"7px", opacity:0.85, marginTop:"2px", lineHeight:1.2, fontFamily:FONT }}>{route.soortDag}</span>}
                             </div>
-                          ) : <div style={{ width:"44px", height:"48px" }} />}
+                          ) : <div style={{ width:"46px", height:"52px" }} />}
                         </td>
                       );
                     })}
@@ -531,30 +559,32 @@ export default function KmDeclaratie() {
                 if (dow!==0&&dow!==6) next[d]=activeTool;
               }
               setSelectedDays(next);
-            }} style={{ padding:"7px 14px", borderRadius:"6px", border:"1px solid #ddd", background:"#f4f4f4", cursor:"pointer", fontSize:"12px" }}>
-              Alle werkdagen (actieve route)
+            }} style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:C.black }}>
+              Alle werkdagen
             </button>
             <button onClick={() => setSelectedDays({})}
-              style={{ padding:"7px 14px", borderRadius:"6px", border:"1px solid #ddd", background:"#f4f4f4", cursor:"pointer", fontSize:"12px" }}>
+              style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:C.black }}>
               Wis alles
             </button>
             <button onClick={() => setView("preview")} disabled={selectedCount===0}
-              style={{ padding:"7px 18px", borderRadius:"6px", border:"none", background:selectedCount>0?"#0000D2":"#ccc", color:"white", cursor:selectedCount>0?"pointer":"default", fontSize:"12px", fontWeight:"600", marginLeft:"auto" }}>
+              style={{ padding:"10px 24px", borderRadius:"24px", border:"none", background:selectedCount>0?C.blue:"#ccc", color:C.white, cursor:selectedCount>0?"pointer":"default", fontSize:"13px", fontWeight:"700", fontFamily:FONT, marginLeft:"auto" }}>
               Bekijk declaratie →
             </button>
           </div>
         </div>
+        </div>
       )}
 
       {view === "preview" && (
-        <div style={{ background:"white", borderRadius:"10px", padding:"20px", boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px", flexWrap:"wrap", gap:"8px" }}>
-            <div style={{ fontWeight:"700", fontSize:"16px", color:"#242424" }}>
+        <div style={{ maxWidth:"1100px", margin:"0 auto", padding:"0 32px 32px" }}>
+        <div style={{ background:C.white, borderRadius:"16px", padding:"28px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px", flexWrap:"wrap", gap:"12px" }}>
+            <div style={{ fontWeight:"800", fontSize:"20px", color:C.black }}>
               Declaratie — {MAANDEN[month]} {year}
             </div>
             <button onClick={handlePrint}
-              style={{ padding:"9px 20px", borderRadius:"6px", border:"none", background:"#0000D2", color:"white", cursor:"pointer", fontWeight:"600", fontSize:"13px" }}>
-              🖨️ Download / Print PDF
+              style={{ padding:"10px 24px", borderRadius:"24px", border:"none", background:C.blue, color:C.white, cursor:"pointer", fontWeight:"700", fontSize:"13px", fontFamily:FONT }}>
+              Download / Print PDF →
             </button>
           </div>
 
@@ -568,7 +598,7 @@ export default function KmDeclaratie() {
               <thead>
                 <tr>
                   {["Datum","Soort dag","Van postcode","Naar postcode","Doel reis (woon-werk, campus, naam klant)","KMs (snelste route Google Maps)","Enkel (1) of Retour (2)","Totaal KMs"].map(h => (
-                    <th key={h} style={{ background:"#1a1a2e", color:"white", padding:"5px 7px", textAlign:"left", fontSize:"7.5pt", fontFamily:"Arial", whiteSpace:"nowrap" }}>{h}</th>
+                    <th key={h} style={{ background:C.black, color:C.white, padding:"5px 7px", textAlign:"left", fontSize:"7.5pt", fontFamily:"Arial", whiteSpace:"nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -603,28 +633,29 @@ export default function KmDeclaratie() {
               </tbody>
             </table>
 
-            {/* Google Maps screenshots per gebruikte route */}
+            {/* Routekaarten per gebruikte route */}
             {usedRoutes.filter(r => r.mapImage).map((route, ri) => (
               <div key={route.id} style={{ marginTop:"24px", pageBreakInside:"avoid" }}>
-                <div style={{ fontFamily:"Arial", fontSize:"9pt", fontWeight:"bold", color:"#333", borderBottom:"1px solid #ddd", paddingBottom:"5px", marginBottom:"10px" }}>
-                  📍 Routekaart — {route.label} ({route.vanPostcode} → {route.naarPostcode}, {route.kmEnkel} km enkel)
+                <div style={{ fontFamily:"Arial", fontSize:"9pt", fontWeight:"bold", color:C.black, borderBottom:`2px solid ${C.black}`, paddingBottom:"5px", marginBottom:"10px" }}>
+                  Routekaart — {route.label} ({route.vanPostcode} → {route.naarPostcode}, {route.kmEnkel} km enkel)
                 </div>
-                <img src={route.mapImage} alt={`Google Maps ${route.label}`}
-                  style={{ maxWidth:"480px", width:"100%", border:"1px solid #ddd", borderRadius:"4px", display:"block" }} />
+                <img src={route.mapImage} alt={`Routekaart ${route.label}`}
+                  style={{ maxWidth:"480px", width:"100%", border:`1px solid ${C.grayLight}`, borderRadius:"8px", display:"block" }} />
               </div>
             ))}
 
             {/* Melding als routes gebruikt worden zonder screenshot */}
             {usedRoutes.filter(r => !r.mapImage).length > 0 && (
-              <div style={{ marginTop:"16px", fontSize:"8pt", color:"#aaa", fontFamily:"Arial", fontStyle:"italic" }}>
-                Geen routekaart beschikbaar voor: {usedRoutes.filter(r=>!r.mapImage).map(r=>r.label).join(", ")}. Upload een screenshot via ⚙️ Instellingen.
+              <div style={{ marginTop:"16px", fontSize:"13px", color:C.gray, fontStyle:"italic" }}>
+                Geen routekaart beschikbaar voor: {usedRoutes.filter(r=>!r.mapImage).map(r=>r.label).join(", ")}. Upload een screenshot via Instellingen.
               </div>
             )}
 
-            <div style={{ marginTop:"12px", fontSize:"8pt", color:"#555", fontFamily:"Arial" }}>
-              Vergoeding: €{config.kmVergoeding}/km &nbsp;|&nbsp; {selectedCount} reisdagen in {MAANDEN[month]} {year}
+            <div style={{ marginTop:"16px", fontSize:"13px", color:C.gray, borderTop:`1px solid ${C.grayLight}`, paddingTop:"12px" }}>
+              Vergoeding: €{config.kmVergoeding}/km &nbsp;·&nbsp; {selectedCount} reisdagen in {MAANDEN[month]} {year}
             </div>
           </div>
+        </div>
         </div>
       )}
     </div>
