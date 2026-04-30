@@ -247,7 +247,7 @@ export default function KmDeclaratie() {
         <div>
           <div style={{ fontSize:"11px", opacity:0.7, textTransform:"uppercase", letterSpacing:"1px" }}>iO — Kilometerdeclaratie</div>
           <div style={{ fontSize:"20px", fontWeight:"bold", marginTop:"2px" }}>{config.naam}</div>
-          <div style={{ fontSize:"11px", opacity:0.75, marginTop:"3px" }}>€{config.kmVergoeding}/km &nbsp;|&nbsp; {config.routes.length} route{config.routes.length !== 1 ? "s" : ""} geconfigureerd</div>
+          <div style={{ fontSize:"11px", opacity:0.75, marginTop:"3px" }}>€{config.kmVergoeding}/km &nbsp;|&nbsp; {config.routes.length} route{config.routes.length !== 1 ? "s" : ""} geconfigureerd &nbsp;|&nbsp; v{VERSION}</div>
         </div>
         <button onClick={() => { setDraftConfig(JSON.parse(JSON.stringify(config))); setShowSettings(true); }}
           style={{ padding:"8px 16px", borderRadius:"7px", border:"2px solid rgba(255,255,255,0.4)", background:"transparent", color:"white", cursor:"pointer", fontWeight:"600", fontSize:"12px" }}>
