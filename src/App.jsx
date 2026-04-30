@@ -18,17 +18,17 @@ const MAANDEN = [  "januari","februari","maart","april","mei","juni",  "juli","a
 const DAGEN_NL = ["zo","ma","di","wo","do","vr","za"];
 
 const DEFAULT_CONFIG = {
-  naam: "Michel Meeuwissen",
+  naam: "",
   kmVergoeding: 0.23,
   routes: [
     {
       id: 1,
-      label: "Woon-werk (kantoor Den Bosch)",
+      label: "Woon-werk",
       soortDag: "Kantoordag",
-      vanPostcode: "5103NN",
-      naarPostcode: "5223MD",
+      vanPostcode: "",
+      naarPostcode: "",
       doel: "woon-werk",
-      kmEnkel: 27.9,
+      kmEnkel: 0,
       retour: 2,
       mapImage: null,
     }
@@ -68,6 +68,9 @@ export default function KmDeclaratie() {
         setDraftConfig(parsed);
         setActiveTool(parsed.routes[0]?.id ?? null);
       } catch (e) { /* corrupte data negeren */ }
+    } else {
+      // Eerste keer opstarten: open instellingen direct
+      setShowSettings(true);
     }
 
     // Versiecheck
