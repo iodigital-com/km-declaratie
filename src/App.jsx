@@ -57,9 +57,36 @@ async function fetchRouteMapImage(vanPostcode, naarPostcode) {
     return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
   };
   const [van, naar] = await Promise.all([geocode(vanPostcode), geocode(naarPostcode)]);
-  const centerLat = (van.lat + naar.lat) / 2;
-  const centerLon = (van.lon + naar.lon) / 2;
-  return `https://staticmap.openstreetmap.de/staticmap.php?center=${centerLat},${centerLon}&zoom=9&size=600x400&markers=${van.lat},${van.lon},red-pushpin|${naar.lat},${naar.lon},blue-pushpin`;
+
+  const W = 600, H = 380, PAD = 60;
+  const minLat = Math.min(van.lat, naar.lat) - 0.04;
+  const maxLat = Math.max(van.lat, naar.lat) + 0.04;
+  const minLon = Math.min(van.lon, naar.lon) - 0.06;
+  const maxLon = Math.max(van.lon, naar.lon) + 0.06;
+  const toX = (lon) => PAD + ((lon - minLon) / (maxLon - minLon)) * (W - PAD * 2);
+  const toY = (lat) => H - PAD - ((lat - minLat) / (maxLat - minLat)) * (H - PAD * 2);
+
+  const vX = toX(van.lon), vY = toY(van.lat);
+  const nX = toX(naar.lon), nY = toY(naar.lat);
+  const dist = Math.sqrt(Math.pow(van.lat - naar.lat, 2) + Math.pow(van.lon - naar.lon, 2)) * 111;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+    <rect width="${W}" height="${H}" fill="#f0ebe3" rx="8"/>
+    <rect x="1" y="1" width="${W-2}" height="${H-2}" fill="none" stroke="#ccc" stroke-width="1" rx="8"/>
+    <line x1="${vX}" y1="${vY}" x2="${nX}" y2="${nY}" stroke="#0000D2" stroke-width="3" stroke-dasharray="10,5" opacity="0.7"/>
+    <circle cx="${vX}" cy="${vY}" r="12" fill="#C3594B" stroke="white" stroke-width="2"/>
+    <text x="${vX}" y="${vY + 5}" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">A</text>
+    <rect x="${vX + 16}" y="${vY - 14}" width="${vanPostcode.length * 7 + 8}" height="18" fill="white" rx="3" opacity="0.9"/>
+    <text x="${vX + 20}" y="${vY - 2}" font-family="Arial" font-size="11" fill="#333">${vanPostcode}</text>
+    <circle cx="${nX}" cy="${nY}" r="12" fill="#2D8A4E" stroke="white" stroke-width="2"/>
+    <text x="${nX}" y="${nY + 5}" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">B</text>
+    <rect x="${nX + 16}" y="${nY - 14}" width="${naarPostcode.length * 7 + 8}" height="18" fill="white" rx="3" opacity="0.9"/>
+    <text x="${nX + 20}" y="${nY - 2}" font-family="Arial" font-size="11" fill="#333">${naarPostcode}</text>
+    <text x="${(vX+nX)/2 + 8}" y="${(vY+nY)/2 - 6}" font-family="Arial" font-size="11" fill="#0000D2" font-weight="bold">≈ ${dist.toFixed(1)} km</text>
+    <text x="10" y="${H - 8}" font-family="Arial" font-size="9" fill="#aaa">Gegenereerd o.b.v. OpenStreetMap / Nominatim</text>
+  </svg>`;
+
+  return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
 }
 
 export default function KmDeclaratie() {
