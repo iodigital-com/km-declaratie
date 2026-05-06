@@ -607,26 +607,48 @@ export default function KmDeclaratie() {
         <div style={{ maxWidth:"1100px", margin:"0 auto", padding:"0 32px 32px" }}>
         <div style={{ background:C.white, borderRadius:"16px", padding:"28px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
           <div style={{ display:"flex", gap:"12px", alignItems:"flex-end", marginBottom:"20px", flexWrap:"wrap" }}>
-            <div>
-              <label style={labelStyle}>Maand</label>
-              <select value={month} onChange={e => setMonth(+e.target.value)} style={{ ...inputStyle, width:"130px" }}>
-                {MAANDEN.map((m, i) => {
-                  if (year === minYear && i < nowMonth) return null;
-                  if (year === maxYear && i > nowMonth) return null;
-                  return <option key={i} value={i}>{m}</option>;
-                })}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>Jaar</label>
-              <select value={year} onChange={e => {
-                const newYear = +e.target.value;
-                setYear(newYear);
-                if (newYear === minYear && month < nowMonth) setMonth(nowMonth);
-                if (newYear === maxYear && month > nowMonth) setMonth(nowMonth);
-              }} style={{ ...inputStyle, width:"90px" }}>
-                {[minYear, minYear + 1, nowYear, maxYear].map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
+            <div style={{ display:"flex", alignItems:"flex-end", gap:"6px" }}>
+              <button onClick={() => {
+                if (month === 0) {
+                  if (year > minYear) { setYear(year - 1); setMonth(11); }
+                } else {
+                  if (!(year === minYear && month - 1 < nowMonth)) setMonth(month - 1);
+                }
+              }} disabled={year === minYear && month <= nowMonth}
+                style={{ padding:"8px 12px", borderRadius:"8px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"16px", lineHeight:1, fontFamily:FONT, color:C.black, opacity:(year===minYear&&month<=nowMonth)?0.3:1 }}>
+                ‹
+              </button>
+              <div>
+                <label style={labelStyle}>Maand</label>
+                <select value={month} onChange={e => setMonth(+e.target.value)} style={{ ...inputStyle, width:"130px" }}>
+                  {MAANDEN.map((m, i) => {
+                    if (year === minYear && i < nowMonth) return null;
+                    if (year === maxYear && i > nowMonth) return null;
+                    return <option key={i} value={i}>{m}</option>;
+                  })}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Jaar</label>
+                <select value={year} onChange={e => {
+                  const newYear = +e.target.value;
+                  setYear(newYear);
+                  if (newYear === minYear && month < nowMonth) setMonth(nowMonth);
+                  if (newYear === maxYear && month > nowMonth) setMonth(nowMonth);
+                }} style={{ ...inputStyle, width:"90px" }}>
+                  {[minYear, minYear + 1, nowYear, maxYear].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <button onClick={() => {
+                if (month === 11) {
+                  if (year < maxYear) { setYear(year + 1); setMonth(0); }
+                } else {
+                  if (!(year === maxYear && month + 1 > nowMonth)) setMonth(month + 1);
+                }
+              }} disabled={year === maxYear && month >= nowMonth}
+                style={{ padding:"8px 12px", borderRadius:"8px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"16px", lineHeight:1, fontFamily:FONT, color:C.black, opacity:(year===maxYear&&month>=nowMonth)?0.3:1 }}>
+                ›
+              </button>
             </div>
             <div style={{ marginLeft:"auto", textAlign:"right" }}>
               <div style={{ fontSize:"11px", color:C.gray, fontWeight:"600", textTransform:"uppercase", letterSpacing:"0.4px", marginBottom:"2px" }}>Geselecteerd</div>
