@@ -129,7 +129,7 @@ export default function KmDeclaratie() {
   const now = new Date();
   const nowYear = now.getFullYear();
   const nowMonth = now.getMonth();
-  const minYear = nowYear - 1;
+  const minYear = nowYear - 2;
   const maxYear = nowYear + 1;
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
@@ -199,7 +199,7 @@ export default function KmDeclaratie() {
 
   // Sla kalenderstate op in localStorage bij elke wijziging (prune data buiten ±1 jaar)
   useEffect(() => {
-    const cutoffPast = new Date(nowYear - 1, nowMonth);
+    const cutoffPast = new Date(nowYear - 2, nowMonth);
     const cutoffFuture = new Date(nowYear + 1, nowMonth);
     const prunedCalendar = Object.fromEntries(
       Object.entries(calendarData).filter(([key]) => {
@@ -625,7 +625,7 @@ export default function KmDeclaratie() {
                 if (newYear === minYear && month < nowMonth) setMonth(nowMonth);
                 if (newYear === maxYear && month > nowMonth) setMonth(nowMonth);
               }} style={{ ...inputStyle, width:"90px" }}>
-                {[minYear, nowYear, maxYear].map(y => <option key={y} value={y}>{y}</option>)}
+                {[minYear, minYear + 1, nowYear, maxYear].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
             <div style={{ marginLeft:"auto", textAlign:"right" }}>
