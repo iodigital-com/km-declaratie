@@ -127,6 +127,10 @@ export default function KmDeclaratie() {
     document.head.appendChild(s);
   }
   const now = new Date();
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth();
+  const minYear = nowYear - 1;
+  const maxYear = nowYear + 1;
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [view, setView] = useState("select");
@@ -193,9 +197,25 @@ export default function KmDeclaratie() {
     localStorage.setItem("km-declaratie-config", JSON.stringify(config));
   }, [config]);
 
-  // Sla kalenderstate op in localStorage bij elke wijziging
+  // Sla kalenderstate op in localStorage bij elke wijziging (prune data buiten ±1 jaar)
   useEffect(() => {
-    localStorage.setItem("km-declaratie-calendar", JSON.stringify({ calendarData, submittedMonths }));
+    const cutoffPast = new Date(nowYear - 1, nowMonth);
+    const cutoffFuture = new Date(nowYear + 1, nowMonth);
+    const prunedCalendar = Object.fromEntries(
+      Object.entries(calendarData).filter(([key]) => {
+        const [y, m] = key.split("-").map(Number);
+        const d = new Date(y, m - 1);
+        return d >= cutoffPast && d <= cutoffFuture;
+      })
+    );
+    const prunedSubmitted = Object.fromEntries(
+      Object.entries(submittedMonths).filter(([key]) => {
+        const [y, m] = key.split("-").map(Number);
+        const d = new Date(y, m - 1);
+        return d >= cutoffPast && d <= cutoffFuture;
+      })
+    );
+    localStorage.setItem("km-declaratie-calendar", JSON.stringify({ calendarData: prunedCalendar, submittedMonths: prunedSubmitted }));
   }, [calendarData, submittedMonths]);
 
   const currentKey = `${year}-${String(month + 1).padStart(2, "0")}`;
@@ -311,7 +331,19 @@ export default function KmDeclaratie() {
   const handleImageUpload = (id, file) => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => updateDraftRoute(id, "mapImage", e.target.result);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_W = 800, MAX_H = 500;
+        const scale = Math.min(1, MAX_W / img.width, MAX_H / img.height);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        updateDraftRoute(id, "mapImage", canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = e.target.result;
+    };
     reader.readAsDataURL(file);
   };
   const addDraftRoute = () => {
@@ -578,13 +610,22 @@ export default function KmDeclaratie() {
             <div>
               <label style={labelStyle}>Maand</label>
               <select value={month} onChange={e => setMonth(+e.target.value)} style={{ ...inputStyle, width:"130px" }}>
-                {MAANDEN.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                {MAANDEN.map((m, i) => {
+                  if (year === minYear && i < nowMonth) return null;
+                  if (year === maxYear && i > nowMonth) return null;
+                  return <option key={i} value={i}>{m}</option>;
+                })}
               </select>
             </div>
             <div>
               <label style={labelStyle}>Jaar</label>
-              <select value={year} onChange={e => setYear(+e.target.value)} style={{ ...inputStyle, width:"90px" }}>
-                {[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
+              <select value={year} onChange={e => {
+                const newYear = +e.target.value;
+                setYear(newYear);
+                if (newYear === minYear && month < nowMonth) setMonth(nowMonth);
+                if (newYear === maxYear && month > nowMonth) setMonth(nowMonth);
+              }} style={{ ...inputStyle, width:"90px" }}>
+                {[minYear, nowYear, maxYear].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
             <div style={{ marginLeft:"auto", textAlign:"right" }}>
