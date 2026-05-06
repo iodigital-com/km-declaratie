@@ -156,6 +156,16 @@ export default function KmDeclaratie() {
       setShowSettings(true);
     }
 
+    const savedCalendar = localStorage.getItem("km-declaratie-calendar");
+    if (savedCalendar) {
+      try {
+        const { year: y, month: m, selectedDays: sd } = JSON.parse(savedCalendar);
+        if (typeof y === "number") setYear(y);
+        if (typeof m === "number") setMonth(m);
+        if (sd && typeof sd === "object") setSelectedDays(sd);
+      } catch (e) { /* corrupte data negeren */ }
+    }
+
     // Versiecheck
     fetch(VERSION_CHECK_URL)
       .then(r => r.json())
@@ -171,6 +181,11 @@ export default function KmDeclaratie() {
   useEffect(() => {
     localStorage.setItem("km-declaratie-config", JSON.stringify(config));
   }, [config]);
+
+  // Sla kalenderstate op in localStorage bij elke wijziging
+  useEffect(() => {
+    localStorage.setItem("km-declaratie-calendar", JSON.stringify({ year, month, selectedDays }));
+  }, [year, month, selectedDays]);
 
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
