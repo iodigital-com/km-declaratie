@@ -133,13 +133,15 @@ export default function KmDeclaratie() {
   const [showSettings, setShowSettings] = useState(false);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [draftConfig, setDraftConfig] = useState(DEFAULT_CONFIG);
-  const [selectedDays, setSelectedDays] = useState({});
+  const [calendarData, setCalendarData] = useState({});
+  const [submittedMonths, setSubmittedMonths] = useState({});
   const [activeTool, setActiveTool] = useState(DEFAULT_CONFIG.routes[0]?.id ?? null);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [mapLoading, setMapLoading] = useState({});
   const [mapErrors, setMapErrors] = useState({});
   const [settingsError, setSettingsError] = useState("");
   const printRef = useRef();
+  const importRef = useRef();
 
   // Laad opgeslagen instellingen uit localStorage bij opstarten
   useEffect(() => {
@@ -159,10 +161,19 @@ export default function KmDeclaratie() {
     const savedCalendar = localStorage.getItem("km-declaratie-calendar");
     if (savedCalendar) {
       try {
-        const { year: y, month: m, selectedDays: sd } = JSON.parse(savedCalendar);
-        if (typeof y === "number") setYear(y);
-        if (typeof m === "number") setMonth(m);
-        if (sd && typeof sd === "object") setSelectedDays(sd);
+        const parsed = JSON.parse(savedCalendar);
+        if (parsed.calendarData && typeof parsed.calendarData === "object") {
+          setCalendarData(parsed.calendarData);
+        } else if (parsed.selectedDays && typeof parsed.year === "number" && typeof parsed.month === "number") {
+          // Migreer oud formaat naar nieuw formaat
+          const key = `${parsed.year}-${String(parsed.month + 1).padStart(2, "0")}`;
+          setCalendarData({ [key]: parsed.selectedDays });
+          setYear(parsed.year);
+          setMonth(parsed.month);
+        }
+        if (parsed.submittedMonths && typeof parsed.submittedMonths === "object") {
+          setSubmittedMonths(parsed.submittedMonths);
+        }
       } catch (e) { /* corrupte data negeren */ }
     }
 
@@ -184,16 +195,29 @@ export default function KmDeclaratie() {
 
   // Sla kalenderstate op in localStorage bij elke wijziging
   useEffect(() => {
-    localStorage.setItem("km-declaratie-calendar", JSON.stringify({ year, month, selectedDays }));
-  }, [year, month, selectedDays]);
+    localStorage.setItem("km-declaratie-calendar", JSON.stringify({ calendarData, submittedMonths }));
+  }, [calendarData, submittedMonths]);
+
+  const currentKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const selectedDays = calendarData[currentKey] ?? {};
+  const isSubmitted = !!submittedMonths[currentKey];
+
+  const setCurrentDays = (updater) => {
+    setCalendarData(prev => {
+      const current = prev[currentKey] ?? {};
+      const next = typeof updater === "function" ? updater(current) : updater;
+      return { ...prev, [currentKey]: next };
+    });
+  };
 
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
 
   const toggleDay = (day) => {
+    if (isSubmitted) return;
     const dow = new Date(year, month, day).getDay();
     if (dow === 0 || dow === 6) return;
-    setSelectedDays(prev => {
+    setCurrentDays(prev => {
       const next = { ...prev };
       if (next[day] === activeTool) delete next[day];
       else next[day] = activeTool;
@@ -211,6 +235,43 @@ export default function KmDeclaratie() {
   // Collect unique routes used this month
   const usedRouteIds = [...new Set(Object.values(selectedDays))];
   const usedRoutes = usedRouteIds.map(id => config.routes.find(r => r.id === id)).filter(Boolean);
+
+  const handleExport = () => {
+    const data = {
+      version: VERSION,
+      exportedAt: new Date().toISOString(),
+      config,
+      calendarData,
+      submittedMonths,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `km-declaratie-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (!parsed.config?.routes) throw new Error("Ongeldig bestand");
+        setConfig(parsed.config);
+        setDraftConfig(JSON.parse(JSON.stringify(parsed.config)));
+        setActiveTool(parsed.config.routes[0]?.id ?? null);
+        if (parsed.calendarData && typeof parsed.calendarData === "object") setCalendarData(parsed.calendarData);
+        if (parsed.submittedMonths && typeof parsed.submittedMonths === "object") setSubmittedMonths(parsed.submittedMonths);
+        setSettingsError("");
+      } catch {
+        setSettingsError("Import mislukt — ongeldig of beschadigd bestand.");
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handlePrint = () => {
     const printContents = printRef.current.innerHTML;
@@ -283,9 +344,21 @@ export default function KmDeclaratie() {
       return;
     }
     setSettingsError("");
+    const newRouteIds = new Set(draftConfig.routes.map(r => r.id));
+    const deletedIds = new Set(config.routes.map(r => r.id).filter(id => !newRouteIds.has(id)));
+    if (deletedIds.size > 0) {
+      setCalendarData(prev => {
+        const next = {};
+        for (const [key, days] of Object.entries(prev)) {
+          next[key] = Object.fromEntries(
+            Object.entries(days).filter(([, routeId]) => !deletedIds.has(routeId))
+          );
+        }
+        return next;
+      });
+    }
     setConfig(draftConfig);
     if (!draftConfig.routes.find(r => r.id === activeTool)) setActiveTool(draftConfig.routes[0]?.id ?? null);
-    setSelectedDays({});
     setShowSettings(false);
   };
 
@@ -452,16 +525,32 @@ export default function KmDeclaratie() {
               + Route toevoegen
             </button>
 
-            <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end", borderTop:`1px solid ${C.grayLight}`, paddingTop:"20px", flexWrap:"wrap", alignItems:"center" }}>
+            <div style={{ borderTop:`1px solid ${C.grayLight}`, paddingTop:"20px" }}>
               {settingsError && (
-                <div style={{ flex:"1 1 100%", fontSize:"13px", color:C.red, fontWeight:"600" }}>⚠ {settingsError}</div>
+                <div style={{ fontSize:"13px", color:C.red, fontWeight:"600", marginBottom:"12px" }}>⚠ {settingsError}</div>
               )}
-              <button onClick={() => setShowSettings(false)}
-                style={{ padding:"10px 22px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"600", fontFamily:FONT, color:C.black }}>Annuleer</button>
-              <button onClick={saveSettings}
-                style={{ padding:"10px 28px", borderRadius:"24px", border:"none", background:C.blue, color:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:FONT }}>
-                Opslaan →
-              </button>
+              <div style={{ display:"flex", gap:"10px", justifyContent:"space-between", flexWrap:"wrap", alignItems:"center" }}>
+                <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                  <button onClick={handleExport}
+                    style={{ padding:"9px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"600", fontFamily:FONT, color:C.black }}>
+                    Exporteer alle data ↓
+                  </button>
+                  <button onClick={() => importRef.current?.click()}
+                    style={{ padding:"9px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"600", fontFamily:FONT, color:C.black }}>
+                    Importeer backup…
+                  </button>
+                  <input ref={importRef} type="file" accept=".json" style={{ display:"none" }}
+                    onChange={e => { handleImport(e.target.files[0]); e.target.value = ""; }} />
+                </div>
+                <div style={{ display:"flex", gap:"10px" }}>
+                  <button onClick={() => setShowSettings(false)}
+                    style={{ padding:"10px 22px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"600", fontFamily:FONT, color:C.black }}>Annuleer</button>
+                  <button onClick={saveSettings}
+                    style={{ padding:"10px 28px", borderRadius:"24px", border:"none", background:C.blue, color:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:FONT }}>
+                    Opslaan →
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -488,13 +577,13 @@ export default function KmDeclaratie() {
           <div style={{ display:"flex", gap:"12px", alignItems:"flex-end", marginBottom:"20px", flexWrap:"wrap" }}>
             <div>
               <label style={labelStyle}>Maand</label>
-              <select value={month} onChange={e => { setMonth(+e.target.value); setSelectedDays({}); }} style={{ ...inputStyle, width:"130px" }}>
+              <select value={month} onChange={e => setMonth(+e.target.value)} style={{ ...inputStyle, width:"130px" }}>
                 {MAANDEN.map((m, i) => <option key={i} value={i}>{m}</option>)}
               </select>
             </div>
             <div>
               <label style={labelStyle}>Jaar</label>
-              <select value={year} onChange={e => { setYear(+e.target.value); setSelectedDays({}); }} style={{ ...inputStyle, width:"90px" }}>
+              <select value={year} onChange={e => setYear(+e.target.value)} style={{ ...inputStyle, width:"90px" }}>
                 {[2024,2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
@@ -504,6 +593,21 @@ export default function KmDeclaratie() {
               <div style={{ fontSize:"11px", color:C.gray }}>dagen · {totalKm.toFixed(1)} km · €{totalVergoeding.toFixed(2)}</div>
             </div>
           </div>
+
+          {isSubmitted && (
+            <div style={{ marginBottom:"16px", background:"#F0FFF4", border:`1.5px solid ${C.green}`, borderRadius:"10px", padding:"12px 18px", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
+              <div style={{ fontSize:"13px", color:C.green, fontWeight:"700" }}>
+                Ingediend op {submittedMonths[currentKey]} — kalender is vergrendeld
+              </div>
+              <button onClick={() => {
+                if (window.confirm("Wil je de declaratie voor deze maand ontgrendelen?")) {
+                  setSubmittedMonths(prev => { const next = { ...prev }; delete next[currentKey]; return next; });
+                }
+              }} style={{ padding:"6px 16px", borderRadius:"24px", border:`1.5px solid ${C.green}`, background:"transparent", color:C.green, cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:FONT, whiteSpace:"nowrap" }}>
+                Ontgrendelen
+              </button>
+            </div>
+          )}
 
           {config.routes.length > 0 && (
             <div style={{ marginBottom:"20px" }}>
@@ -546,7 +650,7 @@ export default function KmDeclaratie() {
                             <div onClick={() => toggleDay(day)} style={{
                               width:"46px", height:"52px", margin:"0 auto", borderRadius:"10px",
                               display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-                              cursor: isWeekend?"default":"pointer",
+                              cursor: (isWeekend||isSubmitted)?"default":"pointer",
                               background: color?color:isWeekend?C.bg:C.white,
                               color: color?C.white:isWeekend?C.grayLight:C.black,
                               border:`2px solid ${color?color:isWeekend?"transparent":C.grayLight}`,
@@ -568,17 +672,18 @@ export default function KmDeclaratie() {
 
           <div style={{ marginTop:"14px", display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
             <button onClick={() => {
+              if (isSubmitted) return;
               const next = {};
               for (let d=1; d<=daysInMonth; d++) {
                 const dow = new Date(year,month,d).getDay();
                 if (dow!==0&&dow!==6) next[d]=activeTool;
               }
-              setSelectedDays(next);
-            }} style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:C.black }}>
+              setCurrentDays(next);
+            }} disabled={isSubmitted} style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:isSubmitted?"default":"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:isSubmitted?C.gray:C.black, opacity:isSubmitted?0.5:1 }}>
               Alle werkdagen
             </button>
-            <button onClick={() => setSelectedDays({})}
-              style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:C.black }}>
+            <button onClick={() => { if (!isSubmitted) setCurrentDays({}); }} disabled={isSubmitted}
+              style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:isSubmitted?"default":"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:isSubmitted?C.gray:C.black, opacity:isSubmitted?0.5:1 }}>
               Wis alles
             </button>
             <button onClick={() => setView("preview")} disabled={selectedCount===0}
@@ -597,10 +702,25 @@ export default function KmDeclaratie() {
             <div style={{ fontWeight:"800", fontSize:"20px", color:C.black }}>
               Declaratie — {MAANDEN[month]} {year}
             </div>
-            <button onClick={handlePrint}
-              style={{ padding:"10px 24px", borderRadius:"24px", border:"none", background:C.blue, color:C.white, cursor:"pointer", fontWeight:"700", fontSize:"13px", fontFamily:FONT }}>
-              Download / Print PDF →
-            </button>
+            <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
+              {isSubmitted ? (
+                <div style={{ padding:"10px 18px", borderRadius:"24px", border:`1.5px solid ${C.green}`, color:C.green, fontSize:"13px", fontWeight:"700", display:"flex", alignItems:"center", gap:"6px" }}>
+                  Ingediend op {submittedMonths[currentKey]}
+                </div>
+              ) : (
+                <button onClick={() => {
+                  const today = new Date().toLocaleDateString("nl-NL", { day:"numeric", month:"long", year:"numeric" });
+                  setSubmittedMonths(prev => ({ ...prev, [currentKey]: today }));
+                  setView("select");
+                }} style={{ padding:"10px 20px", borderRadius:"24px", border:`1.5px solid ${C.green}`, background:"transparent", color:C.green, cursor:"pointer", fontWeight:"700", fontSize:"13px", fontFamily:FONT }}>
+                  Markeer als ingediend ✓
+                </button>
+              )}
+              <button onClick={handlePrint}
+                style={{ padding:"10px 24px", borderRadius:"24px", border:"none", background:C.blue, color:C.white, cursor:"pointer", fontWeight:"700", fontSize:"13px", fontFamily:FONT }}>
+                Download / Print PDF →
+              </button>
+            </div>
           </div>
 
           <div ref={printRef}>
