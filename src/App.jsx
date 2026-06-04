@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 
 const VERSION = import.meta.env.VITE_APP_VERSION || "1.0.0";
+
+// Dark mode helper
+function getSystemDark() { return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false; }
 // Pas deze URL aan naar de locatie waar je version.json host (bv. GitHub raw of Azure Blob)
 const VERSION_CHECK_URL = "https://raw.githubusercontent.com/momeeuw/km-declaratie/main/public/version.json";
 
@@ -41,14 +44,20 @@ function formatDate(day, month, year) { return `${day} ${MAANDEN[month]} ${year}
 function uid() { return Math.floor(Math.random() * 1e9); }
 
 const FONT = "'Manrope', 'Inter', system-ui, sans-serif";
-const C = {
+const LIGHT = {
   blue: "#0000D2", blueDark: "#0000A8", blueLight: "#e8eaff",
   black: "#1a1a1a", gray: "#6b6b6b", grayLight: "#e2e2e2",
   bg: "#f5f4f1", white: "#ffffff", red: "#C3594B", green: "#2D8A4E",
 };
-const labelStyle = { fontSize:"11px", color:C.gray, display:"block", marginBottom:"5px", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.6px", fontFamily:FONT };
-const inputStyle = { padding:"10px 14px", borderRadius:"8px", border:`1.5px solid ${C.grayLight}`, fontSize:"14px", width:"100%", fontFamily:FONT, color:C.black, background:C.white, outline:"none", transition:"border-color 0.15s" };
-const tdStyle = { padding:"6px 10px", borderBottom:`1px solid ${C.grayLight}`, fontFamily:FONT, fontSize:"13px" };
+const DARK = {
+  blue: "#4d6fff", blueDark: "#3355ee", blueLight: "#1a2340",
+  black: "#f0f0f0", gray: "#a0a0a0", grayLight: "#2e2e2e",
+  bg: "#111111", white: "#1c1c1c", red: "#e07060", green: "#4aba78",
+};
+// These are functions so they pick up the current C (dark/light) at render time
+const makeLabelStyle = (C) => ({ fontSize:"11px", color:C.gray, display:"block", marginBottom:"5px", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.6px", fontFamily:FONT });
+const makeInputStyle = (C) => ({ padding:"10px 14px", borderRadius:"8px", border:`1.5px solid ${C.grayLight}`, fontSize:"14px", width:"100%", fontFamily:FONT, color:C.black, background:C.white, outline:"none", transition:"border-color 0.15s" });
+const makeTdStyle = (C) => ({ padding:"6px 10px", borderBottom:`1px solid ${C.grayLight}`, fontFamily:FONT, fontSize:"13px", color:C.black, background:"transparent" });
 const routeColor = [C.blue, C.red, C.green, "#8B5CF6", "#D97706"];
 const SOORT_DAG_OPTIES = ["Kantoordag", "Klantdag", "Thuiswerkdag", "Feestdag", "Vrij"];
 
@@ -119,13 +128,23 @@ async function fetchRouteMapImage(vanPostcode, naarPostcode) {
 }
 
 export default function KmDeclaratie() {
-  // Inject global styles once
-  if (typeof document !== "undefined" && !document.getElementById("km-global-style")) {
-    const s = document.createElement("style");
-    s.id = "km-global-style";
-    s.textContent = `*{box-sizing:border-box;margin:0;padding:0}body{background:#f5f4f1}input,select,textarea{font-family:'Manrope','Inter',system-ui,sans-serif}input:focus,select:focus{outline:none;border-color:#0000D2!important}`;
-    document.head.appendChild(s);
-  }
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem("km-dark-mode");
+    if (saved !== null) return saved === "true";
+    return getSystemDark();
+  });
+  const C = darkMode ? DARK : LIGHT;
+  const labelStyle = makeLabelStyle(C);
+  const inputStyle = makeInputStyle(C);
+  const tdStyle = makeTdStyle(C);
+
+  // Inject / update global styles
+  useEffect(() => {
+    let s = document.getElementById("km-global-style");
+    if (!s) { s = document.createElement("style"); s.id = "km-global-style"; document.head.appendChild(s); }
+    s.textContent = `*{box-sizing:border-box;margin:0;padding:0}body{background:${C.bg};color:${C.black}}input,select,textarea{font-family:'Manrope','Inter',system-ui,sans-serif;background:${C.white};color:${C.black}}input:focus,select:focus{outline:none;border-color:${C.blue}!important}`;
+    localStorage.setItem("km-dark-mode", darkMode);
+  }, [darkMode]);
   const now = new Date();
   const nowYear = now.getFullYear();
   const nowMonth = now.getMonth();
@@ -140,10 +159,11 @@ export default function KmDeclaratie() {
   const [calendarData, setCalendarData] = useState({});
   const [submittedMonths, setSubmittedMonths] = useState({});
   const [activeTool, setActiveTool] = useState(DEFAULT_CONFIG.routes[0]?.id ?? null);
-  const [updateInfo, setUpdateInfo] = useState(null);
+    const [updateInfo, setUpdateInfo] = useState(null);
   const [mapLoading, setMapLoading] = useState({});
   const [mapErrors, setMapErrors] = useState({});
   const [settingsError, setSettingsError] = useState("");
+  const [exportWarning, setExportWarning] = useState(false);
   const printRef = useRef();
   const importRef = useRef();
 
@@ -166,12 +186,24 @@ export default function KmDeclaratie() {
     if (savedCalendar) {
       try {
         const parsed = JSON.parse(savedCalendar);
-        if (parsed.calendarData && typeof parsed.calendarData === "object") {
-          setCalendarData(parsed.calendarData);
+                if (parsed.calendarData && typeof parsed.calendarData === "object") {
+          // Migreer oud formaat: { dag: routeId } → { dag: [routeId] }
+          const migrated = {};
+          for (const [key, days] of Object.entries(parsed.calendarData)) {
+            migrated[key] = {};
+            for (const [dag, val] of Object.entries(days)) {
+              migrated[key][dag] = Array.isArray(val) ? val : [val];
+            }
+          }
+          setCalendarData(migrated);
         } else if (parsed.selectedDays && typeof parsed.year === "number" && typeof parsed.month === "number") {
           // Migreer oud formaat naar nieuw formaat
           const key = `${parsed.year}-${String(parsed.month + 1).padStart(2, "0")}`;
-          setCalendarData({ [key]: parsed.selectedDays });
+          const migratedDays = {};
+          for (const [dag, val] of Object.entries(parsed.selectedDays)) {
+            migratedDays[dag] = Array.isArray(val) ? val : [val];
+          }
+          setCalendarData({ [key]: migratedDays });
           setYear(parsed.year);
           setMonth(parsed.month);
         }
@@ -233,30 +265,51 @@ export default function KmDeclaratie() {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
 
-  const toggleDay = (day) => {
+    const toggleDay = (day) => {
     if (isSubmitted) return;
     const dow = new Date(year, month, day).getDay();
     if (dow === 0 || dow === 6) return;
     setCurrentDays(prev => {
       const next = { ...prev };
-      if (next[day] === activeTool) delete next[day];
-      else next[day] = activeTool;
+      const current = next[day] ?? [];
+      if (current.includes(activeTool)) {
+        // verwijder deze route van deze dag
+        const filtered = current.filter(id => id !== activeTool);
+        if (filtered.length === 0) delete next[day];
+        else next[day] = filtered;
+      } else {
+        next[day] = [...current, activeTool];
+      }
       return next;
     });
   };
 
-  const totalKm = Object.entries(selectedDays).reduce((sum, [, routeId]) => {
-    const route = config.routes.find(r => r.id === routeId);
-    return route ? sum + route.kmEnkel * route.retour : sum;
+  const totalKm = Object.entries(selectedDays).reduce((sum, [, routeIds]) => {
+    const ids = Array.isArray(routeIds) ? routeIds : [routeIds];
+    return sum + ids.reduce((s, routeId) => {
+      const route = config.routes.find(r => r.id === routeId);
+      return route ? s + route.kmEnkel * route.retour : s;
+    }, 0);
   }, 0);
   const totalVergoeding = totalKm * config.kmVergoeding;
   const selectedCount = Object.keys(selectedDays).length;
 
   // Collect unique routes used this month
-  const usedRouteIds = [...new Set(Object.values(selectedDays))];
+  const usedRouteIds = [...new Set(Object.values(selectedDays).flat())];
   const usedRoutes = usedRouteIds.map(id => config.routes.find(r => r.id === id)).filter(Boolean);
 
-  const handleExport = () => {
+    const handleExport = () => {
+    // Waarschuwing als er geen kalenderdata is
+    const hasData = Object.values(calendarData).some(days => Object.keys(days).length > 0);
+    if (!hasData) {
+      setExportWarning(true);
+      return;
+    }
+    doExport();
+  };
+
+  const doExport = () => {
+    setExportWarning(false);
     const data = {
       version: VERSION,
       exportedAt: new Date().toISOString(),
@@ -369,6 +422,58 @@ export default function KmDeclaratie() {
       setMapLoading(prev => ({ ...prev, [route.id]: false }));
     }
   };
+    const copyPreviousMonth = () => {
+    // Bepaal vorige maand
+    let prevMonth = month - 1;
+    let prevYear = year;
+    if (prevMonth < 0) { prevMonth = 11; prevYear -= 1; }
+    const prevKey = `${prevYear}-${String(prevMonth + 1).padStart(2, "0")}`;
+    const prevDays = calendarData[prevKey];
+    if (!prevDays || Object.keys(prevDays).length === 0) {
+      alert(`Geen data gevonden voor ${MAANDEN[prevMonth]} ${prevYear}.`);
+      return;
+    }
+    if (isSubmitted) return;
+    // Kopieer de dag-types (ma/di/wo/etc positie) naar de huidige maand
+    const prevDaysInMonth = getDaysInMonth(prevYear, prevMonth);
+    const next = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dow = new Date(year, month, d).getDay();
+      if (dow === 0 || dow === 6) continue;
+      // zoek een dag in de vorige maand met dezelfde weekdag-positie (zelfde weeknummer tellen vanaf begin)
+      // Simpelste aanpak: kopieer op basis van dezelfde dag-van-de-week én zelfde weeknummer
+      // We mappen: voor elke werkdag in huidige maand, kijk of de overeenkomstige werkdag in vorige maand een rit had
+      // "Overeenkomstige" = zelfde positie in de lijst van werkdagen van die maand
+      next[d] = undefined; // placeholder
+    }
+    // Bouw werkdagenlijst voor beide maanden
+    const werkdagenHuidig = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dow = new Date(year, month, d).getDay();
+      if (dow !== 0 && dow !== 6) werkdagenHuidig.push(d);
+    }
+    const werkdagenVorig = [];
+    for (let d = 1; d <= prevDaysInMonth; d++) {
+      const dow = new Date(prevYear, prevMonth, d).getDay();
+      if (dow !== 0 && dow !== 6) werkdagenVorig.push(d);
+    }
+    const result = {};
+    werkdagenHuidig.forEach((dag, idx) => {
+      const prevDag = werkdagenVorig[idx];
+      if (prevDag !== undefined && prevDays[prevDag]) {
+        result[dag] = prevDays[prevDag];
+      }
+    });
+    if (Object.keys(result).length === 0) {
+      alert(`Vorige maand (${MAANDEN[prevMonth]} ${prevYear}) bevatte geen ingevoerde ritten.`);
+      return;
+    }
+    if (Object.keys(selectedDays).length > 0) {
+      if (!window.confirm(`De huidige maand heeft al ${Object.keys(selectedDays).length} dag(en) ingevuld. Overschrijven met kopie van ${MAANDEN[prevMonth]} ${prevYear}?`)) return;
+    }
+    setCurrentDays(result);
+  };
+
   const saveSettings = () => {
     const missing = draftConfig.routes.filter(r => !r.mapImage);
     if (missing.length > 0) {
@@ -382,9 +487,12 @@ export default function KmDeclaratie() {
       setCalendarData(prev => {
         const next = {};
         for (const [key, days] of Object.entries(prev)) {
-          next[key] = Object.fromEntries(
-            Object.entries(days).filter(([, routeId]) => !deletedIds.has(routeId))
-          );
+          next[key] = {};
+          for (const [dag, routeIds] of Object.entries(days)) {
+            const ids = Array.isArray(routeIds) ? routeIds : [routeIds];
+            const filtered = ids.filter(id => !deletedIds.has(id));
+            if (filtered.length > 0) next[key][dag] = filtered;
+          }
         }
         return next;
       });
@@ -394,8 +502,27 @@ export default function KmDeclaratie() {
     setShowSettings(false);
   };
 
-  return (
-    <div style={{ fontFamily:FONT, minHeight:"100vh", background:C.bg, color:C.black }}>
+    return (
+    <div style={{ fontFamily:FONT, minHeight:"100vh", background:C.bg, color:C.black, transition:"background 0.2s, color 0.2s" }}>
+
+      {/* Export waarschuwing modal */}
+      {exportWarning && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(26,26,26,0.5)", zIndex:200, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
+          <div style={{ background:C.white, borderRadius:"16px", padding:"32px", maxWidth:"420px", width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", fontFamily:FONT }}>
+            <div style={{ fontSize:"32px", marginBottom:"12px", textAlign:"center" }}>⚠️</div>
+            <div style={{ fontWeight:"800", fontSize:"18px", color:C.black, marginBottom:"8px", textAlign:"center" }}>Lege export</div>
+            <div style={{ fontSize:"14px", color:C.gray, marginBottom:"24px", textAlign:"center", lineHeight:1.5 }}>
+              Er zijn nog geen ritten ingevoerd. De export bevat alleen je instellingen, geen kalenderdata.<br/><br/>Wil je toch exporteren?
+            </div>
+            <div style={{ display:"flex", gap:"10px", justifyContent:"center" }}>
+              <button onClick={() => setExportWarning(false)}
+                style={{ padding:"10px 22px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:"pointer", fontSize:"13px", fontWeight:"600", fontFamily:FONT, color:C.black }}>Annuleer</button>
+              <button onClick={doExport}
+                style={{ padding:"10px 24px", borderRadius:"24px", border:"none", background:C.blue, color:"#fff", cursor:"pointer", fontSize:"13px", fontWeight:"700", fontFamily:FONT }}>Toch exporteren →</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Update-banner */}
       {updateInfo && (
@@ -427,8 +554,13 @@ export default function KmDeclaratie() {
               {config.naam && <div style={{ fontSize:"16px", fontWeight:"700", color:C.black, lineHeight:1.2 }}>{config.naam}</div>}
             </div>
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
             <span style={{ fontSize:"12px", color:C.gray }}>€{config.kmVergoeding}/km · {config.routes.length} route{config.routes.length !== 1 ? "s" : ""} · v{VERSION}</span>
+            <button onClick={() => setDarkMode(d => !d)}
+              title={darkMode ? "Lichte modus" : "Donkere modus"}
+              style={{ padding:"8px 12px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:"transparent", color:C.black, cursor:"pointer", fontSize:"16px", lineHeight:1, transition:"all 0.15s" }}>
+              {darkMode ? "☀️" : "🌙"}
+            </button>
             <button onClick={() => { setDraftConfig(JSON.parse(JSON.stringify(config))); setShowSettings(true); }}
               style={{ padding:"8px 20px", borderRadius:"24px", border:`1.5px solid ${C.blue}`, background:"transparent", color:C.blue, cursor:"pointer", fontWeight:"700", fontSize:"13px", fontFamily:FONT, display:"flex", alignItems:"center", gap:"6px", transition:"all 0.15s" }}>
               Instellingen →
@@ -437,10 +569,10 @@ export default function KmDeclaratie() {
         </div>
       </header>
 
-      {/* Settings Modal */}
+            {/* Settings Modal */}
       {showSettings && (
         <div style={{ position:"fixed", inset:0, background:"rgba(26,26,26,0.5)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-          <div style={{ background:C.white, borderRadius:"16px", padding:"32px", width:"100%", maxWidth:"640px", maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", fontFamily:FONT }}>
+          <div style={{ background:C.white, borderRadius:"16px", padding:"32px", width:"100%", maxWidth:"640px", maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", fontFamily:FONT, color:C.black }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"24px" }}>
               <div style={{ fontWeight:"800", fontSize:"20px", color:C.black }}>Instellingen</div>
               <button onClick={() => setShowSettings(false)} style={{ background:"none", border:"none", fontSize:"22px", cursor:"pointer", color:C.gray, lineHeight:1, padding:"4px" }}>✕</button>
@@ -459,8 +591,8 @@ export default function KmDeclaratie() {
 
             <div style={{ fontWeight:"700", fontSize:"14px", marginBottom:"12px", borderTop:`1px solid ${C.grayLight}`, paddingTop:"20px", color:C.black }}>Routes</div>
 
-            {draftConfig.routes.map((route, ri) => (
-              <div key={route.id} style={{ background:C.bg, borderRadius:"12px", padding:"18px", marginBottom:"14px", borderLeft:`4px solid ${routeColor[ri % routeColor.length]}` }}>
+                        {draftConfig.routes.map((route, ri) => (
+              <div key={route.id} style={{ background:darkMode?"#222":C.bg, borderRadius:"12px", padding:"18px", marginBottom:"14px", borderLeft:`4px solid ${routeColor[ri % routeColor.length]}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
                   <div style={{ fontWeight:"700", fontSize:"13px", color:routeColor[ri % routeColor.length], textTransform:"uppercase", letterSpacing:"0.5px" }}>Route {ri + 1}</div>
                   {draftConfig.routes.length > 1 && (
@@ -700,28 +832,46 @@ export default function KmDeclaratie() {
               <tbody>
                 {rows.map((row, ri) => (
                   <tr key={ri}>
-                    {row.map((day, di) => {
+                                        {row.map((day, di) => {
                       const dow = di % 7;
                       const isWeekend = dow===0||dow===6;
-                      const routeId = day ? selectedDays[day] : null;
-                      const route = routeId ? config.routes.find(r => r.id===routeId) : null;
-                      const ri2 = route ? config.routes.findIndex(r => r.id===routeId) : -1;
-                      const color = ri2>=0 ? routeColor[ri2%routeColor.length] : null;
+                      const routeIds = day ? (selectedDays[day] ?? []) : [];
+                      const routeIdList = Array.isArray(routeIds) ? routeIds : [routeIds];
+                      const hasMultiple = routeIdList.length > 1;
+                      // Kleur: bij meerdere ritten geeft een gedeelde achtergrond een indicatie
+                      const firstRoute = routeIdList.length > 0 ? config.routes.find(r => r.id===routeIdList[0]) : null;
+                      const firstRi = firstRoute ? config.routes.findIndex(r => r.id===routeIdList[0]) : -1;
+                      const firstColor = firstRi>=0 ? routeColor[firstRi%routeColor.length] : null;
+                      const isActiveOnDay = routeIdList.includes(activeTool);
                       return (
                         <td key={di} style={{ padding:"4px", textAlign:"center", verticalAlign:"top" }}>
                           {day ? (
                             <div onClick={() => toggleDay(day)} style={{
-                              width:"46px", height:"52px", margin:"0 auto", borderRadius:"10px",
+                              width:"46px", height:hasMultiple?"62px":"52px", margin:"0 auto", borderRadius:"10px",
                               display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
                               cursor: (isWeekend||isSubmitted)?"default":"pointer",
-                              background: color?color:isWeekend?C.bg:C.white,
-                              color: color?C.white:isWeekend?C.grayLight:C.black,
-                              border:`2px solid ${color?color:isWeekend?"transparent":C.grayLight}`,
-                              fontWeight: color?"700":"500", transition:"all 0.15s",
-                              boxShadow: color?"0 2px 6px rgba(0,0,0,0.12)":"none",
+                              background: firstColor?firstColor:isWeekend?C.bg:C.white,
+                              color: firstColor?"#fff":isWeekend?C.grayLight:C.black,
+                              border: isActiveOnDay?`2px solid ${firstColor??C.blue}`:`2px solid ${firstColor?firstColor:isWeekend?"transparent":C.grayLight}`,
+                              fontWeight: firstColor?"700":"500", transition:"all 0.15s",
+                              boxShadow: firstColor?"0 2px 6px rgba(0,0,0,0.12)":"none",
+                              position:"relative",
                             }}>
                               <span style={{ fontSize:"15px", fontFamily:FONT }}>{day}</span>
-                              {route && <span style={{ fontSize:"7px", opacity:0.85, marginTop:"2px", lineHeight:1.2, fontFamily:FONT }}>{route.soortDag}</span>}
+                              {routeIdList.length > 0 && (
+                                <div style={{ display:"flex", gap:"2px", marginTop:"3px", flexWrap:"wrap", justifyContent:"center", padding:"0 3px" }}>
+                                  {routeIdList.map((rid, i) => {
+                                    const r = config.routes.find(x => x.id===rid);
+                                    const ri3 = config.routes.findIndex(x => x.id===rid);
+                                    const col = ri3>=0 ? routeColor[ri3%routeColor.length] : C.gray;
+                                    return r ? (
+                                      <span key={rid} style={{ fontSize:"6.5px", lineHeight:1.2, fontFamily:FONT, background: i===0?"rgba(255,255,255,0.25)":col, color:"#fff", borderRadius:"3px", padding:"1px 3px", whiteSpace:"nowrap" }}>
+                                        {r.label.length > 6 ? r.label.slice(0,6)+"…" : r.label}
+                                      </span>
+                                    ) : null;
+                                  })}
+                                </div>
+                              )}
                             </div>
                           ) : <div style={{ width:"46px", height:"52px" }} />}
                         </td>
@@ -733,13 +883,13 @@ export default function KmDeclaratie() {
             </table>
           </div>
 
-          <div style={{ marginTop:"14px", display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
+                    <div style={{ marginTop:"14px", display:"flex", gap:"8px", flexWrap:"wrap", alignItems:"center" }}>
             <button onClick={() => {
               if (isSubmitted) return;
               const next = {};
               for (let d=1; d<=daysInMonth; d++) {
                 const dow = new Date(year,month,d).getDay();
-                if (dow!==0&&dow!==6) next[d]=activeTool;
+                if (dow!==0&&dow!==6) next[d]=[activeTool];
               }
               setCurrentDays(next);
             }} disabled={isSubmitted} style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:isSubmitted?"default":"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:isSubmitted?C.gray:C.black, opacity:isSubmitted?0.5:1 }}>
@@ -749,8 +899,12 @@ export default function KmDeclaratie() {
               style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.grayLight}`, background:C.white, cursor:isSubmitted?"default":"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:isSubmitted?C.gray:C.black, opacity:isSubmitted?0.5:1 }}>
               Wis alles
             </button>
+            <button onClick={copyPreviousMonth} disabled={isSubmitted}
+              style={{ padding:"8px 18px", borderRadius:"24px", border:`1.5px solid ${C.blue}`, background:"transparent", cursor:isSubmitted?"default":"pointer", fontSize:"13px", fontFamily:FONT, fontWeight:"600", color:isSubmitted?C.gray:C.blue, opacity:isSubmitted?0.5:1 }}>
+              Kopieer vorige maand ↩
+            </button>
             <button onClick={() => setView("preview")} disabled={selectedCount===0}
-              style={{ padding:"10px 24px", borderRadius:"24px", border:"none", background:selectedCount>0?C.blue:"#ccc", color:C.white, cursor:selectedCount>0?"pointer":"default", fontSize:"13px", fontWeight:"700", fontFamily:FONT, marginLeft:"auto" }}>
+              style={{ padding:"10px 24px", borderRadius:"24px", border:"none", background:selectedCount>0?C.blue:"#ccc", color:"#fff", cursor:selectedCount>0?"pointer":"default", fontSize:"13px", fontWeight:"700", fontFamily:FONT, marginLeft:"auto" }}>
               Bekijk declaratie →
             </button>
           </div>
@@ -801,22 +955,38 @@ export default function KmDeclaratie() {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: daysInMonth }, (_, i) => i+1).map(day => {
-                  const routeId = selectedDays[day];
-                  const route = routeId ? config.routes.find(r => r.id===routeId) : null;
-                  const dayKm = route ? route.kmEnkel*route.retour : 0;
-                  return (
-                    <tr key={day} style={{ background: route?"#f0f4ff":"white" }}>
-                      <td style={tdStyle}>{formatDate(day,month,year)}</td>
-                      <td style={tdStyle}>{route?route.soortDag:""}</td>
-                      <td style={tdStyle}>{route?route.vanPostcode:""}</td>
-                      <td style={tdStyle}>{route?route.naarPostcode:""}</td>
-                      <td style={tdStyle}>{route?route.doel:""}</td>
-                      <td style={{ ...tdStyle, textAlign:"right" }}>{route?route.kmEnkel:""}</td>
-                      <td style={{ ...tdStyle, textAlign:"center" }}>{route?route.retour:""}</td>
-                      <td style={{ ...tdStyle, textAlign:"right" }}>{dayKm>0?dayKm.toFixed(1):"0"}</td>
-                    </tr>
-                  );
+                                {Array.from({ length: daysInMonth }, (_, i) => i+1).flatMap(day => {
+                  const routeIds = selectedDays[day];
+                  const ids = routeIds ? (Array.isArray(routeIds) ? routeIds : [routeIds]) : [];
+                  if (ids.length === 0) {
+                    return [
+                      <tr key={day} style={{ background:"transparent" }}>
+                        <td style={tdStyle}>{formatDate(day,month,year)}</td>
+                        <td style={tdStyle}></td><td style={tdStyle}></td><td style={tdStyle}></td>
+                        <td style={tdStyle}></td><td style={{ ...tdStyle, textAlign:"right" }}></td>
+                        <td style={{ ...tdStyle, textAlign:"center" }}></td>
+                        <td style={{ ...tdStyle, textAlign:"right" }}>0</td>
+                      </tr>
+                    ];
+                  }
+                  return ids.map((routeId, ridx) => {
+                    const route = config.routes.find(r => r.id===routeId);
+                    const dayKm = route ? route.kmEnkel*route.retour : 0;
+                    const riIdx = route ? config.routes.findIndex(r => r.id===routeId) : -1;
+                    const rowBg = riIdx>=0 ? routeColor[riIdx%routeColor.length]+"22" : "transparent";
+                    return (
+                      <tr key={`${day}-${routeId}`} style={{ background: rowBg }}>
+                        <td style={tdStyle}>{ridx===0 ? formatDate(day,month,year) : ""}</td>
+                        <td style={tdStyle}>{route?route.soortDag:""}</td>
+                        <td style={tdStyle}>{route?route.vanPostcode:""}</td>
+                        <td style={tdStyle}>{route?route.naarPostcode:""}</td>
+                        <td style={tdStyle}>{route?route.doel:""}</td>
+                        <td style={{ ...tdStyle, textAlign:"right" }}>{route?route.kmEnkel:""}</td>
+                        <td style={{ ...tdStyle, textAlign:"center" }}>{route?route.retour:""}</td>
+                        <td style={{ ...tdStyle, textAlign:"right" }}>{dayKm>0?dayKm.toFixed(1):"0"}</td>
+                      </tr>
+                    );
+                  });
                 })}
                 <tr>
                   <td colSpan={6} style={{ padding:"6px 7px", fontFamily:"Arial" }}></td>
