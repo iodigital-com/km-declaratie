@@ -158,6 +158,11 @@ export default function KmDeclaratie() {
   const labelStyle = makeLabelStyle(C);
   const inputStyle = makeInputStyle(C);
   const tdStyle = makeTdStyle(C);
+  const declTotalStyle = {
+    padding:"6px 7px", fontWeight:"bold", textAlign:"right", fontFamily:"Arial", fontSize:"8pt",
+    background:darkMode ? C.grayLight : "#f9f9f9", color:C.black, borderTop:`2px solid ${C.black}`,
+  };
+  const declTotalStyleLast = { ...declTotalStyle, padding:"4px 7px", borderTop:"none" };
 
   // Inject / update global styles
   useEffect(() => {
@@ -576,12 +581,13 @@ export default function KmDeclaratie() {
             {/* Settings Modal */}
       {showSettings && (
         <div style={{ position:"fixed", inset:0, background:"rgba(26,26,26,0.5)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }}>
-          <div style={{ background:C.white, borderRadius:"16px", padding:"32px", width:"100%", maxWidth:"640px", maxHeight:"90vh", overflowY:"auto", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", fontFamily:FONT, color:C.black }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"24px" }}>
+          <div style={{ background:C.white, borderRadius:"16px", width:"100%", maxWidth:"640px", maxHeight:"90vh", display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", fontFamily:FONT, color:C.black }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"24px 32px 16px", flexShrink:0, borderBottom:`1px solid ${C.grayLight}`, background:C.white }}>
               <div style={{ fontWeight:"800", fontSize:"20px", color:C.black }}>Instellingen</div>
               <button onClick={() => setShowSettings(false)} style={{ background:"none", border:"none", fontSize:"22px", cursor:"pointer", color:C.gray, lineHeight:1, padding:"4px" }}>✕</button>
             </div>
 
+            <div style={{ flex:1, minHeight:0, overflowY:"auto", padding:"24px 32px 32px" }}>
             <div style={{ marginBottom:"14px" }}>
               <label style={labelStyle}>Naam</label>
               <input value={draftConfig.naam} onChange={e => setDraftConfig(p => ({ ...p, naam: e.target.value }))} style={inputStyle} />
@@ -719,6 +725,7 @@ export default function KmDeclaratie() {
                   </button>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -948,8 +955,8 @@ export default function KmDeclaratie() {
             <div style={{ display:"flex", alignItems:"center", gap:"16px", marginBottom:"12px" }}>
               <img src={ioLogo} alt="iO" style={{ height:"36px", width:"auto", display:"block" }} />
               <div>
-                <h2 style={{ fontFamily:"Arial", fontSize:"14pt", marginBottom:"3px" }}>Kilometerdeclaratie</h2>
-                <div style={{ fontFamily:"Arial", fontSize:"9pt", color:"#444" }}>
+                <h2 style={{ fontFamily:"Arial", fontSize:"14pt", marginBottom:"3px", color:C.black }}>Kilometerdeclaratie</h2>
+                <div style={{ fontFamily:"Arial", fontSize:"9pt", color:C.gray }}>
                   {config.naam} &nbsp;|&nbsp; {MAANDEN[month].charAt(0).toUpperCase()+MAANDEN[month].slice(1)} {year}
                 </div>
               </div>
@@ -999,13 +1006,13 @@ export default function KmDeclaratie() {
                 })}
                 <tr>
                   <td colSpan={6} style={{ padding:"6px 7px", fontFamily:"Arial" }}></td>
-                  <td style={{ padding:"6px 7px", fontWeight:"bold", textAlign:"right", borderTop:"2px solid #1a1a2e", background:"#f9f9f9", fontFamily:"Arial", fontSize:"8pt" }}>TOTAAL aan KM's:</td>
-                  <td style={{ padding:"6px 7px", fontWeight:"bold", textAlign:"right", borderTop:"2px solid #1a1a2e", background:"#f9f9f9", fontFamily:"Arial" }}>{totalKm.toFixed(1)}</td>
+                  <td style={declTotalStyle}>TOTAAL aan KM's:</td>
+                  <td style={declTotalStyle}>{totalKm.toFixed(1)}</td>
                 </tr>
                 <tr>
                   <td colSpan={6} style={{ padding:"4px 7px", fontFamily:"Arial" }}></td>
-                  <td style={{ padding:"4px 7px", fontWeight:"bold", textAlign:"right", background:"#f9f9f9", fontFamily:"Arial", fontSize:"8pt" }}>Totale KM vergoeding:</td>
-                  <td style={{ padding:"4px 7px", fontWeight:"bold", textAlign:"right", background:"#f9f9f9", fontFamily:"Arial" }}>{totalVergoeding.toFixed(2)}</td>
+                  <td style={declTotalStyleLast}>Totale KM vergoeding:</td>
+                  <td style={declTotalStyleLast}>{totalVergoeding.toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
