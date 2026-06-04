@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import ioLogo from "./assets/io-logo.png";
+import ioLogoDark from "./assets/io-logo-dark.png";
 
 const VERSION = import.meta.env.VITE_APP_VERSION || "1.0.0";
 
@@ -42,6 +44,25 @@ function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDa
 function getFirstDayOfMonth(year, month) { return new Date(year, month, 1).getDay(); }
 function formatDate(day, month, year) { return `${day} ${MAANDEN[month]} ${year}`; }
 function uid() { return Math.floor(Math.random() * 1e9); }
+function getWeekdayOccurrence(year, month, day) {
+  const dow = new Date(year, month, day).getDay();
+  let occurrence = 0;
+  for (let d = 1; d <= day; d++) {
+    if (new Date(year, month, d).getDay() === dow) occurrence++;
+  }
+  return { dow, occurrence };
+}
+function findDayByWeekdayOccurrence(year, month, dow, occurrence) {
+  let count = 0;
+  const dim = getDaysInMonth(year, month);
+  for (let d = 1; d <= dim; d++) {
+    if (new Date(year, month, d).getDay() === dow) {
+      count++;
+      if (count === occurrence) return d;
+    }
+  }
+  return undefined;
+}
 
 const FONT = "'Manrope', 'Inter', system-ui, sans-serif";
 const LIGHT = {
@@ -434,36 +455,17 @@ export default function KmDeclaratie() {
       return;
     }
     if (isSubmitted) return;
-    // Kopieer de dag-types (ma/di/wo/etc positie) naar de huidige maand
-    const prevDaysInMonth = getDaysInMonth(prevYear, prevMonth);
-    const next = {};
+    // Kopieer op weekdag: 1e woensdag → 1e woensdag, 2e woensdag → 2e woensdag, etc.
+    const result = {};
     for (let d = 1; d <= daysInMonth; d++) {
       const dow = new Date(year, month, d).getDay();
       if (dow === 0 || dow === 6) continue;
-      // zoek een dag in de vorige maand met dezelfde weekdag-positie (zelfde weeknummer tellen vanaf begin)
-      // Simpelste aanpak: kopieer op basis van dezelfde dag-van-de-week én zelfde weeknummer
-      // We mappen: voor elke werkdag in huidige maand, kijk of de overeenkomstige werkdag in vorige maand een rit had
-      // "Overeenkomstige" = zelfde positie in de lijst van werkdagen van die maand
-      next[d] = undefined; // placeholder
-    }
-    // Bouw werkdagenlijst voor beide maanden
-    const werkdagenHuidig = [];
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dow = new Date(year, month, d).getDay();
-      if (dow !== 0 && dow !== 6) werkdagenHuidig.push(d);
-    }
-    const werkdagenVorig = [];
-    for (let d = 1; d <= prevDaysInMonth; d++) {
-      const dow = new Date(prevYear, prevMonth, d).getDay();
-      if (dow !== 0 && dow !== 6) werkdagenVorig.push(d);
-    }
-    const result = {};
-    werkdagenHuidig.forEach((dag, idx) => {
-      const prevDag = werkdagenVorig[idx];
+      const { occurrence } = getWeekdayOccurrence(year, month, d);
+      const prevDag = findDayByWeekdayOccurrence(prevYear, prevMonth, dow, occurrence);
       if (prevDag !== undefined && prevDays[prevDag]) {
-        result[dag] = prevDays[prevDag];
+        result[d] = prevDays[prevDag];
       }
-    });
+    }
     if (Object.keys(result).length === 0) {
       alert(`Vorige maand (${MAANDEN[prevMonth]} ${prevYear}) bevatte geen ingevoerde ritten.`);
       return;
@@ -545,9 +547,11 @@ export default function KmDeclaratie() {
       <header style={{ background:C.white, borderBottom:`1px solid ${C.grayLight}`, padding:"0 32px" }}>
         <div style={{ maxWidth:"1100px", margin:"0 auto", display:"flex", justifyContent:"space-between", alignItems:"center", height:"64px", gap:"16px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"20px" }}>
-            <div style={{ fontWeight:"800", fontSize:"22px", letterSpacing:"-0.5px", color:C.black }}>
-              <span style={{ color:C.blue }}>i</span>O
-            </div>
+            <img
+              src={darkMode ? ioLogoDark : ioLogo}
+              alt="iO"
+              style={{ height:"32px", width:"auto", display:"block" }}
+            />
             <div style={{ width:"1px", height:"24px", background:C.grayLight }} />
             <div>
               <div style={{ fontSize:"13px", color:C.gray, fontWeight:"500", letterSpacing:"0.2px" }}>Kilometerdeclaratie</div>
@@ -941,9 +945,14 @@ export default function KmDeclaratie() {
           </div>
 
           <div ref={printRef}>
-            <h2 style={{ fontFamily:"Arial", fontSize:"14pt", marginBottom:"3px" }}>Kilometerdeclaratie</h2>
-            <div style={{ fontFamily:"Arial", fontSize:"9pt", color:"#444", marginBottom:"12px" }}>
-              {config.naam} &nbsp;|&nbsp; {MAANDEN[month].charAt(0).toUpperCase()+MAANDEN[month].slice(1)} {year}
+            <div style={{ display:"flex", alignItems:"center", gap:"16px", marginBottom:"12px" }}>
+              <img src={ioLogo} alt="iO" style={{ height:"36px", width:"auto", display:"block" }} />
+              <div>
+                <h2 style={{ fontFamily:"Arial", fontSize:"14pt", marginBottom:"3px" }}>Kilometerdeclaratie</h2>
+                <div style={{ fontFamily:"Arial", fontSize:"9pt", color:"#444" }}>
+                  {config.naam} &nbsp;|&nbsp; {MAANDEN[month].charAt(0).toUpperCase()+MAANDEN[month].slice(1)} {year}
+                </div>
+              </div>
             </div>
 
             <table style={{ width:"100%", borderCollapse:"collapse", fontFamily:"Arial", fontSize:"8.5pt" }}>
@@ -996,7 +1005,7 @@ export default function KmDeclaratie() {
                 <tr>
                   <td colSpan={6} style={{ padding:"4px 7px", fontFamily:"Arial" }}></td>
                   <td style={{ padding:"4px 7px", fontWeight:"bold", textAlign:"right", background:"#f9f9f9", fontFamily:"Arial", fontSize:"8pt" }}>Totale KM vergoeding:</td>
-                  <td style={{ padding:"4px 7px", fontWeight:"bold", textAlign:"right", background:"#f9f9f9", fontFamily:"Arial" }}>{totalVergoeding.toFixed(3)}</td>
+                  <td style={{ padding:"4px 7px", fontWeight:"bold", textAlign:"right", background:"#f9f9f9", fontFamily:"Arial" }}>{totalVergoeding.toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
