@@ -58,7 +58,7 @@ const DARK = {
 const makeLabelStyle = (C) => ({ fontSize:"11px", color:C.gray, display:"block", marginBottom:"5px", fontWeight:"700", textTransform:"uppercase", letterSpacing:"0.6px", fontFamily:FONT });
 const makeInputStyle = (C) => ({ padding:"10px 14px", borderRadius:"8px", border:`1.5px solid ${C.grayLight}`, fontSize:"14px", width:"100%", fontFamily:FONT, color:C.black, background:C.white, outline:"none", transition:"border-color 0.15s" });
 const makeTdStyle = (C) => ({ padding:"6px 10px", borderBottom:`1px solid ${C.grayLight}`, fontFamily:FONT, fontSize:"13px", color:C.black, background:"transparent" });
-const routeColor = [C.blue, C.red, C.green, "#8B5CF6", "#D97706"];
+const routeColor = ["#0000D2", "#C3594B", "#2D8A4E", "#8B5CF6", "#D97706"];
 const SOORT_DAG_OPTIES = ["Kantoordag", "Klantdag", "Thuiswerkdag", "Feestdag", "Vrij"];
 
 async function fetchRouteMapImage(vanPostcode, naarPostcode) {
