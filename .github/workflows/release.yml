@@ -29,22 +29,16 @@ jobs:
 
       - run: npm ci
 
-      - name: Update version.json
+      - name: Update versienummer in version.json (behoud changelog)
         run: |
-          cat > public/version.json << EOF
-          {
-            "version": "${{ steps.version.outputs.VERSION }}",
-            "downloadUrl": "https://github.com/momeeuw/km-declaratie/releases/latest/download/km-declaratie.html",
-            "changelog": "Zie de release notes op GitHub voor wijzigingen"
-          }
-          EOF
-
-      - name: Commit version.json naar main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/version.json
-          git diff --staged --quiet || (git commit -m "chore: bump version.json naar ${{ steps.version.outputs.VERSION }}" && git push origin main)
+          node -e "
+            const fs = require('fs');
+            const f = 'public/version.json';
+            const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+            j.version = '${{ steps.version.outputs.VERSION }}';
+            j.downloadUrl = 'https://github.com/momeeuw/km-declaratie/releases/latest/download/km-declaratie.html';
+            fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
+          "
 
       - name: Build standalone HTML
         run: npm run build
