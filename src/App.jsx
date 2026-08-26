@@ -7,7 +7,7 @@ const VERSION = import.meta.env.VITE_APP_VERSION || "1.0.0";
 // Dark mode helper
 function getSystemDark() { return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false; }
 // Pas deze URL aan naar de locatie waar je version.json host (bv. GitHub raw of Azure Blob)
-const VERSION_CHECK_URL = "https://raw.githubusercontent.com/momeeuw/km-declaratie/main/public/version.json";
+const VERSION_CHECK_URL = "https://raw.githubusercontent.com/iodigital-com/km-declaratie/main/public/version.json";
 
 function isNewerVersion(remote, local) {
   const r = remote.split(".").map(Number);
