@@ -981,7 +981,7 @@ export default function KmDeclaratie() {
                   if (ids.length === 0) {
                     return [
                       <tr key={day} style={{ background:"transparent" }}>
-                        <td style={tdStyle}>{formatDate(day,month,year)}</td>
+                        <td style={{ ...tdStyle, whiteSpace:"nowrap" }}>{formatDate(day,month,year)}</td>
                         <td style={tdStyle}></td><td style={tdStyle}></td><td style={tdStyle}></td>
                         <td style={tdStyle}></td><td style={{ ...tdStyle, textAlign:"right" }}></td>
                         <td style={{ ...tdStyle, textAlign:"center" }}></td>
@@ -996,7 +996,7 @@ export default function KmDeclaratie() {
                     const rowBg = riIdx>=0 ? routeColor[riIdx%routeColor.length]+"22" : "transparent";
                     return (
                       <tr key={`${day}-${routeId}`} style={{ background: rowBg }}>
-                        <td style={tdStyle}>{ridx===0 ? formatDate(day,month,year) : ""}</td>
+                        <td style={{ ...tdStyle, whiteSpace:"nowrap" }}>{ridx===0 ? formatDate(day,month,year) : ""}</td>
                         <td style={tdStyle}>{route?route.soortDag:""}</td>
                         <td style={tdStyle}>{route?route.vanPostcode:""}</td>
                         <td style={tdStyle}>{route?route.naarPostcode:""}</td>
