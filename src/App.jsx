@@ -42,7 +42,10 @@ const DEFAULT_CONFIG = {
 
 function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
 function getFirstDayOfMonth(year, month) { return new Date(year, month, 1).getDay(); }
-function formatDate(day, month, year) { return `${day} ${MAANDEN[month]} ${year}`; }
+function formatDate(day, month, year) {
+  const dow = new Date(year, month, day).getDay();
+  return `${DAGEN_NL[dow]} ${day} ${MAANDEN[month]} ${year}`;
+}
 function uid() { return Math.floor(Math.random() * 1e9); }
 function getWeekdayOccurrence(year, month, day) {
   const dow = new Date(year, month, day).getDay();
