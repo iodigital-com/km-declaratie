@@ -20,6 +20,7 @@ function isNewerVersion(remote, local) {
 }
 
 const MAANDEN = [  "januari","februari","maart","april","mei","juni",  "juli","augustus","september","oktober","november","december"];
+const MAANDEN_KORT = ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"];
 const DAGEN_NL = ["zo","ma","di","wo","do","vr","za"];
 
 const DEFAULT_CONFIG = {
@@ -44,7 +45,7 @@ function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDa
 function getFirstDayOfMonth(year, month) { return new Date(year, month, 1).getDay(); }
 function formatDate(day, month, year) {
   const dow = new Date(year, month, day).getDay();
-  return `${DAGEN_NL[dow]} ${day} ${MAANDEN[month]} ${year}`;
+  return `${DAGEN_NL[dow]} ${day} ${MAANDEN_KORT[month]} ${year}`;
 }
 function uid() { return Math.floor(Math.random() * 1e9); }
 function getWeekdayOccurrence(year, month, day) {
